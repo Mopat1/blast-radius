@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blastradius"
+version = "0.1.0"
+description = "Know what breaks before you merge — code-change impact analysis via dependency graphs."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Shadaan" }]
+dependencies = ["networkx>=3.0", "click>=8.1"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.4"]
+
+[project.scripts]
+blastradius = "blastradius.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["blastradius*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["examples/shop"]
