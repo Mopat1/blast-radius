@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlastRadius Cloud</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0B1220;--panel:#101A2D;--panel2:#0E1626;--line:#1E2B45;
+  --text:#DCE4F2;--muted:#8A97B0;--blast:#FF5C38;--safe:#7FB4FF;
+  --safe-dim:#31456B;--ok:#4ADE9C;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--ink);color:var(--text);font-family:"IBM Plex Sans",sans-serif;font-size:15px;height:100vh;overflow:hidden}
+.mono{font-family:"IBM Plex Mono",monospace}
+button{font-family:"Sora";font-weight:600;font-size:.85rem;border:none;border-radius:8px;padding:10px 18px;cursor:pointer;transition:transform .12s}
+button:hover{transform:translateY(-1px)}
+.b-blast{background:var(--blast);color:#14100E}
+.b-ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+input{background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:10px 14px;font-family:inherit;font-size:.9rem;width:100%}
+input:focus{outline:none;border-color:var(--safe)}
+
+/* auth screen */
+#auth{height:100vh;display:flex;align-items:center;justify-content:center}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:36px;width:380px}
+.card h1{font-family:"Sora";font-size:1.3rem;margin-bottom:6px;display:flex;gap:10px;align-items:center}
+.card p{color:var(--muted);font-size:.85rem;margin-bottom:24px}
+.card input{margin-bottom:12px}
+.card button{width:100%;margin-top:6px}
+.err{color:var(--blast);font-size:.82rem;margin-top:10px;min-height:1em}
+.switch{color:var(--muted);font-size:.82rem;text-align:center;margin-top:16px;cursor:pointer}
+.switch b{color:var(--safe)}
+
+/* app shell */
+#app{display:none;height:100vh;grid-template-columns:280px 1fr 340px;grid-template-rows:56px 1fr}
+#app.on{display:grid}
+header{grid-column:1/4;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid var(--line);background:var(--panel2)}
+header .logo{font-family:"Sora";font-weight:700;display:flex;gap:9px;align-items:center;font-size:.98rem}
+header .user{color:var(--muted);font-size:.82rem;display:flex;gap:14px;align-items:center}
+header .user span{cursor:pointer}
+header .user span:hover{color:var(--blast)}
+
+/* sidebar */
+aside{border-right:1px solid var(--line);padding:18px;overflow-y:auto}
+aside h2{font-family:"IBM Plex Mono";font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.repo{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;cursor:pointer}
+.repo:hover{border-color:var(--safe)}
+.repo.active{border-color:var(--blast)}
+.repo .name{font-weight:600;font-size:.9rem;display:flex;justify-content:space-between;align-items:center}
+.repo .meta{color:var(--muted);font-size:.75rem;margin-top:3px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot.ready{background:var(--ok)}.dot.pending,.dot.analyzing{background:#EAB308}.dot.failed{background:var(--blast)}
+#addForm{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+
+/* graph area */
+main{position:relative;overflow:hidden}
+#gcanvas{width:100%;height:100%;display:block;cursor:grab}
+#gtools{position:absolute;top:14px;left:14px;right:14px;display:flex;gap:10px;pointer-events:none}
+#gtools input{max-width:320px;pointer-events:auto}
+#empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.9rem;text-align:center;padding:0 40px}
+#legend{position:absolute;bottom:14px;left:14px;font-size:.72rem;color:var(--muted);font-family:"IBM Plex Mono"}
+#legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin:0 4px 0 12px}
+
+/* impact panel */
+#panel{border-left:1px solid var(--line);padding:18px;overflow-y:auto}
+#panel h2{font-family:"IBM Plex Mono";font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.risk{font-family:"Sora";font-size:1.6rem;font-weight:700;margin:6px 0 2px}
+.risk.HIGH{color:var(--blast)}.risk.MEDIUM{color:#EAB308}.risk.LOW{color:var(--ok)}
+.sect{margin-top:18px}
+.sect .t{font-size:.78rem;color:var(--muted);font-family:"IBM Plex Mono";margin-bottom:6px}
+.sect li{list-style:none;font-size:.8rem;font-family:"IBM Plex Mono";padding:5px 8px;background:var(--panel);border:1px solid var(--line);border-radius:6px;margin-bottom:5px;word-break:break-all}
+.hintp{color:var(--muted);font-size:.85rem;line-height:1.6}
+@media(max-width:980px){#app.on{grid-template-columns:1fr;grid-template-rows:56px auto 1fr auto}aside{border-right:none;border-bottom:1px solid var(--line)}#panel{border-left:none;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth">
+  <div class="card">
+    <h1><svg width="20" height="20" viewBox="0 0 22 22"><circle cx="11" cy="11" r="3.2" fill="#FF5C38"/><circle cx="11" cy="11" r="7" stroke="#FF5C38" stroke-opacity=".5" stroke-width="1.4" fill="none"/><circle cx="11" cy="11" r="10.3" stroke="#7FB4FF" stroke-opacity=".35" stroke-width="1.2" fill="none"/></svg> BlastRadius Cloud</h1>
+    <p id="authSub">Sign in to your workspace</p>
+    <input id="email" type="email" placeholder="email" autocomplete="email">
+    <input id="pass" type="password" placeholder="password (min 6 chars)" autocomplete="current-password">
+    <button class="b-blast" id="authBtn">Sign in</button>
+    <div class="err" id="authErr"></div>
+    <div class="switch" id="authSwitch">New here? <b>Create an account</b></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <div class="logo"><svg width="18" height="18" viewBox="0 0 22 22"><circle cx="11" cy="11" r="3.2" fill="#FF5C38"/><circle cx="11" cy="11" r="7" stroke="#FF5C38" stroke-opacity=".5" stroke-width="1.4" fill="none"/></svg> BlastRadius Cloud</div>
+    <div class="user"><span id="who"></span><span id="logout">sign out</span></div>
+  </header>
+
+  <aside>
+    <h2>Repositories</h2>
+    <div id="repoList"></div>
+    <div id="addForm">
+      <input id="rName" placeholder="name (e.g. shop)">
+      <input id="rSource" placeholder="git URL or local path">
+      <button class="b-ghost" id="rAdd">+ Add & analyze</button>
+    </div>
+  </aside>
+
+  <main>
+    <canvas id="gcanvas"></canvas>
+    <div id="gtools"><input id="searchBox" placeholder="search nodes… (enter)"></div>
+    <div id="empty">Select a repository, then click any node to detonate its blast radius.</div>
+    <div id="legend">function<i style="background:var(--safe)"></i>test<i style="background:var(--ok)"></i>endpoint<i style="background:#EAB308"></i>impacted<i style="background:var(--blast)"></i></div>
+  </main>
+
+  <div id="panel">
+    <h2>Impact report</h2>
+    <div id="report"><p class="hintp">Click a node in the graph — the engine computes who transitively depends on it, which API endpoints are exposed, and which tests to run.</p></div>
+  </div>
+</div>
+
+<script>
+/* ---------------- state + api ---------------- */
+let TOKEN = localStorage.getItem('br_token') || '';
+let WHO = localStorage.getItem('br_email') || '';
+let mode = 'login', currentRepo = null, poll = null;
+
+const $ = id => document.getElementById(id);
+const api = async (path, opts={}) => {
+  const r = await fetch(path, {...opts, headers:{
+    'Content-Type':'application/json',
+    ...(TOKEN ? {Authorization:'Bearer '+TOKEN} : {}), ...(opts.headers||{})
+  }});
+  if(r.status===401 && TOKEN){ logout(); throw new Error('session expired'); }
+  if(!r.ok){ const d = await r.json().catch(()=>({})); throw new Error(d.detail||r.statusText); }
+  return r.status===204 ? null : r.json();
+};
+
+/* ---------------- auth ---------------- */
+$('authSwitch').onclick = () => {
+  mode = mode==='login' ? 'register' : 'login';
+  $('authBtn').textContent = mode==='login' ? 'Sign in' : 'Create account';
+  $('authSub').textContent = mode==='login' ? 'Sign in to your workspace' : 'Create your workspace';
+  $('authSwitch').innerHTML = mode==='login' ? 'New here? <b>Create an account</b>' : 'Have an account? <b>Sign in</b>';
+};
+$('authBtn').onclick = async () => {
+  $('authErr').textContent='';
+  try{
+    const d = await api('/auth/'+(mode==='login'?'login':'register'),{
+      method:'POST', body:JSON.stringify({email:$('email').value, password:$('pass').value})});
+    TOKEN=d.token; WHO=d.email;
+    localStorage.setItem('br_token',TOKEN); localStorage.setItem('br_email',WHO);
+    enter();
+  }catch(e){ $('authErr').textContent=e.message; }
+};
+$('pass').addEventListener('keydown',e=>{ if(e.key==='Enter') $('authBtn').click(); });
+function logout(){ TOKEN=''; localStorage.clear(); location.reload(); }
+$('logout').onclick = logout;
+
+function enter(){
+  $('auth').style.display='none'; $('app').classList.add('on');
+  $('who').textContent=WHO; loadRepos(); poll=setInterval(loadRepos,3000);
+  resize();
+}
+if(TOKEN) enter();
+
+/* ---------------- repos ---------------- */
+async function loadRepos(){
+  try{
+    const repos = await api('/repos');
+    $('repoList').innerHTML = repos.map(r=>`
+      <div class="repo ${currentRepo===r.id?'active':''}" onclick="openRepo(${r.id},'${r.status}')">
+        <div class="name">${r.name} <span class="dot ${r.status}"></span></div>
+        <div class="meta mono">${r.status==='ready' ? r.n_nodes+' nodes · '+r.n_edges+' edges' : r.status}${r.error?' — '+r.error:''}</div>
+      </div>`).join('') || '<p class="hintp">No repositories yet — add one below.</p>';
+  }catch(e){}
+}
+$('rAdd').onclick = async () => {
+  try{
+    await api('/repos',{method:'POST',body:JSON.stringify({name:$('rName').value,source:$('rSource').value})});
+    $('rName').value=''; $('rSource').value=''; loadRepos();
+  }catch(e){ alert(e.message); }
+};
+window.openRepo = async (id,status) => {
+  currentRepo=id; loadRepos();
+  if(status!=='ready') return;
+  const doc = await api(`/repos/${id}/graph`);
+  buildGraph(doc); $('empty').style.display='none';
+};
+
+/* ---------------- search ---------------- */
+$('searchBox').addEventListener('keydown', async e=>{
+  if(e.key!=='Enter'||!currentRepo) return;
+  const d = await api(`/repos/${currentRepo}/search?q=`+encodeURIComponent(e.target.value));
+  if(d.results.length) focusNode(d.results[0].id);
+});
+
+/* ---------------- force-directed graph ---------------- */
+const cv=$('gcanvas'), ctx=cv.getContext('2d');
+let nodes=[], links=[], byId={}, hit=new Set(), origin=null, drag=null, cam={x:0,y:0,z:1};
+const COLORS={function:'#7FB4FF',method:'#7FB4FF',class:'#B48CFF',module:'#31456B',test:'#4ADE9C',api_endpoint:'#EAB308'};
+
+function resize(){ cv.width=cv.clientWidth*devicePixelRatio; cv.height=cv.clientHeight*devicePixelRatio; }
+addEventListener('resize',resize);
+
+function buildGraph(doc){
+  hit.clear(); origin=null;
+  const keep = doc.nodes.filter(n=>n.kind!=='module');
+  byId={};
+  nodes = keep.map((n,i)=>{
+    const a=i/keep.length*Math.PI*2, r=120+Math.random()*140;
+    const o={...n,x:Math.cos(a)*r,y:Math.sin(a)*r,vx:0,vy:0};
+    byId[n.id]=o; return o;
+  });
+  links = doc.edges.filter(e=>byId[e.src]&&byId[e.dst]&&['CALLS','EXPOSES','TESTS','INHERITS'].includes(e.kind))
+                   .map(e=>({s:byId[e.src],t:byId[e.dst],kind:e.kind}));
+  cam={x:0,y:0,z:1};
+}
+
+function step(){
+  // simple force simulation: repulsion + springs + centering
+  for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+    const a=nodes[i],b=nodes[j];
+    let dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy+0.01,d=Math.sqrt(d2);
+    const f=1800/d2; dx/=d;dy/=d;
+    a.vx-=dx*f;a.vy-=dy*f;b.vx+=dx*f;b.vy+=dy*f;
+  }
+  links.forEach(l=>{
+    let dx=l.t.x-l.s.x,dy=l.t.y-l.s.y,d=Math.hypot(dx,dy)||1;
+    const f=(d-90)*0.02; dx/=d;dy/=d;
+    l.s.vx+=dx*f;l.s.vy+=dy*f;l.t.vx-=dx*f;l.t.vy-=dy*f;
+  });
+  nodes.forEach(n=>{
+    n.vx-=n.x*0.002;n.vy-=n.y*0.002;
+    n.vx*=0.85;n.vy*=0.85;
+    if(n!==drag){n.x+=n.vx;n.y+=n.vy;}
+  });
+}
+
+function draw(){
+  step();
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  ctx.clearRect(0,0,cv.clientWidth,cv.clientHeight);
+  ctx.translate(cv.clientWidth/2+cam.x,cv.clientHeight/2+cam.y);
+  ctx.scale(cam.z,cam.z);
+
+  links.forEach(l=>{
+    const isHit=hit.has(l.s.id)&&hit.has(l.t.id);
+    ctx.strokeStyle=isHit?'#FF5C38':'#1E2B45';
+    ctx.lineWidth=isHit?1.8:1;
+    ctx.beginPath();ctx.moveTo(l.s.x,l.s.y);ctx.lineTo(l.t.x,l.t.y);ctx.stroke();
+  });
+  nodes.forEach(n=>{
+    const impacted=hit.has(n.id);
+    ctx.beginPath();ctx.arc(n.x,n.y,n.id===origin?9:6,0,7);
+    ctx.fillStyle=impacted?'#FF5C38':(COLORS[n.kind]||'#7FB4FF');
+    ctx.fill();
+    if(n.id===origin){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();}
+    if(cam.z>0.7||impacted){
+      ctx.fillStyle=impacted?'#DCE4F2':'#8A97B0';
+      ctx.font='9px "IBM Plex Mono"';ctx.textAlign='center';
+      ctx.fillText(n.name,n.x,n.y+16);
+    }
+  });
+  requestAnimationFrame(draw);
+}
+draw();
+
+/* interactions: drag nodes, pan, zoom, click = impact */
+function pick(e){
+  const r=cv.getBoundingClientRect();
+  const x=(e.clientX-r.left-cv.clientWidth/2-cam.x)/cam.z;
+  const y=(e.clientY-r.top-cv.clientHeight/2-cam.y)/cam.z;
+  return nodes.find(n=>Math.hypot(n.x-x,n.y-y)<10);
+}
+let panning=null, moved=false;
+cv.onmousedown=e=>{ moved=false; const n=pick(e); if(n)drag=n; else panning={x:e.clientX-cam.x,y:e.clientY-cam.y}; };
+cv.onmousemove=e=>{
+  moved=true;
+  if(drag){const r=cv.getBoundingClientRect();
+    drag.x=(e.clientX-r.left-cv.clientWidth/2-cam.x)/cam.z;
+    drag.y=(e.clientY-r.top-cv.clientHeight/2-cam.y)/cam.z;}
+  else if(panning){cam.x=e.clientX-panning.x;cam.y=e.clientY-panning.y;}
+};
+cv.onmouseup=async e=>{
+  if(!moved){const n=pick(e); if(n)await detonate(n.id);}
+  drag=null;panning=null;
+};
+cv.onwheel=e=>{e.preventDefault();cam.z=Math.min(3,Math.max(.3,cam.z*(e.deltaY<0?1.1:0.9)));};
+
+function focusNode(id){ const n=byId[id]; if(!n)return; cam.x=-n.x*cam.z; cam.y=-n.y*cam.z; detonate(id); }
+
+/* ---------------- impact ---------------- */
+async function detonate(nodeId){
+  if(!currentRepo)return;
+  const d = await api(`/repos/${currentRepo}/impact?target=`+encodeURIComponent(nodeId));
+  if(d.ambiguous)return;
+  origin=nodeId;
+  hit=new Set([nodeId,...d.affected_functions,...d.affected_endpoints,...d.affected_tests]);
+  const li=a=>a.length?a.map(x=>`<li>${x}</li>`).join(''):'<li>—</li>';
+  $('report').innerHTML=`
+    <div class="mono" style="font-size:.8rem;word-break:break-all">${d.target}</div>
+    <div class="risk ${d.risk_level}">${d.risk_score} <span style="font-size:.8rem">${d.risk_level}</span></div>
+    <div class="mono" style="color:var(--muted);font-size:.75rem">call depth ${d.call_depth}</div>
+    <div class="sect"><div class="t">affected functions (${d.affected_functions.length})</div><ul>${li(d.affected_functions)}</ul></div>
+    <div class="sect"><div class="t">affected endpoints (${d.affected_endpoints.length})</div><ul>${li(d.affected_endpoints)}</ul></div>
+    <div class="sect"><div class="t">tests to run (${d.affected_tests.length})</div><ul>${li(d.affected_tests)}</ul></div>
+    <div class="sect"><div class="t">affected files (${d.affected_files.length})</div><ul>${li(d.affected_files)}</ul></div>`;
+}
+</script>
+</body>
+</html>

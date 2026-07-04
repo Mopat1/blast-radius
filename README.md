@@ -83,5 +83,42 @@ pytest
 ## Roadmap
 
 - [x] Milestone 1 — open-source engine (parser, IR, graph, blast algorithm, CLI, JSON export)
-- [ ] Milestone 2 — Cloud MVP (auth, repos, dashboard, graph visualization)
+- [x] Milestone 2 — Cloud MVP (JWT auth, repo management, background analysis, dashboard with interactive graph, search, impact API)
 - [ ] Milestone 3 — GitHub App, VS Code extension, AI assistant
+
+
+## BlastRadius Cloud (Milestone 2)
+
+A FastAPI backend + single-page dashboard on top of the engine.
+
+```bash
+pip install -e ".[server,dev]"
+uvicorn server.main:app --reload
+```
+
+Open **http://localhost:8000** — create an account, add a repository
+(git URL or local path), and it's analyzed in the background. Click any
+node in the graph to detonate its blast radius; the impact panel shows
+risk score, affected functions, endpoints, and tests.
+
+Interactive API docs at **http://localhost:8000/docs**.
+
+### API
+
+| Method | Route | Purpose |
+|---|---|---|
+| POST | `/auth/register`, `/auth/login` | JWT auth |
+| GET/POST/DELETE | `/repos` | repository management |
+| POST | `/repos/{id}/analyze` | re-run background analysis |
+| GET | `/repos/{id}/graph` | full IR graph as JSON |
+| GET | `/repos/{id}/impact?target=fn` | blast radius report |
+| GET | `/repos/{id}/search?q=` | node search |
+
+### MVP infrastructure choices (and swap points)
+
+| MVP | Production swap |
+|---|---|
+| SQLite | PostgreSQL (change `BLASTRADIUS_DB`) |
+| FastAPI BackgroundTasks | Celery + Redis (same job function) |
+| Graph JSON in SQL | Neo4j |
+| Canvas force layout | React Flow / Next.js dashboard |
