@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field
@@ -22,8 +23,60 @@ from .db import init_db, get_db, User, Repo
 from .auth import hash_password, verify_password, create_token, current_user
 from .analysis import run_analysis
 
-app = FastAPI(title="BlastRadius Cloud", version="0.2.0")
+app = FastAPI(title="BlastRadius Cloud", version="0.3.0")
+
+# CORS: needed when the frontend is hosted separately (e.g. Netlify).
+# Set BLASTRADIUS_CORS to a comma-separated list of origins in production.
+import os as _os
+_origins = [o.strip() for o in _os.environ.get("BLASTRADIUS_CORS", "*").split(",")]
+app.add_middleware(CORSMiddleware, allow_origins=_origins,
+                   allow_methods=["*"], allow_headers=["*"])
+
+# GZip: the graph JSON for large repos compresses ~85% over the wire.
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+
+@app.middleware("http")
+async def static_no_cache(request, call_next):
+    """Force revalidation of frontend assets so deploys are picked up
+    immediately (stale ES-module caches otherwise mix old and new code)."""
+    response = await call_next(request)
+    p = request.url.path
+    if p == "/" or p.startswith("/static"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
 init_db()
+
+
+@app.get("/health", include_in_schema=False)
+def health():
+    """Deployment health check (configure this path in Render)."""
+    return {"status": "ok"}
+
+
+DEMO_EMAIL = "demo@blastradius.dev"
+DEMO_REPO_SOURCE = "https://github.com/pallets/click"
+
+
+@app.post("/auth/demo")
+def demo_login(tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Product-led onboarding: instant demo account preloaded with a real repo."""
+    import secrets
+    user = db.query(User).filter_by(email=DEMO_EMAIL).first()
+    if user is None:
+        user = User(email=DEMO_EMAIL,
+                    password_hash=hash_password(secrets.token_hex(16)))
+        db.add(user)
+        db.commit()
+    repo = db.query(Repo).filter_by(owner_id=user.id, name="click-demo").first()
+    if repo is None:
+        repo = Repo(owner_id=user.id, name="click-demo", source=DEMO_REPO_SOURCE)
+        db.add(repo)
+        db.commit()
+        tasks.add_task(run_analysis, repo.id)
+    return {"token": create_token(user), "email": user.email}
 
 STATIC = Path(__file__).parent / "static"
 
@@ -133,6 +186,27 @@ def impact(repo_id: int, target: str, user: User = Depends(current_user),
     if len(matches) > 1 and target not in matches:
         return {"ambiguous": True, "candidates": matches[:20]}
     return {"ambiguous": False, **engine.blast_radius(matches[0]).to_dict()}
+
+
+@app.get("/repos/{repo_id}/hotspots")
+def hotspots(repo_id: int, limit: int = 10, user: User = Depends(current_user),
+             db: Session = Depends(get_db)):
+    """Top-N riskiest functions in the repo, by blast-radius score."""
+    doc = _doc(repo_id, user, db)
+    engine = BlastEngine(build_graph(doc))
+    scored = []
+    for n, data in engine.g.nodes(data=True):
+        if data.get("kind") in ("function", "method"):
+            r = engine.blast_radius(n)
+            scored.append({
+                "id": n, "risk": r.risk_score, "level": r.risk_level,
+                "callers": len(r.affected_functions),
+                "endpoints": len(r.affected_endpoints),
+                "tests": len(r.affected_tests),
+                "file": data.get("file"), "line": data.get("line"),
+            })
+    scored.sort(key=lambda x: -x["risk"])
+    return {"hotspots": scored[:max(1, min(limit, 50))]}
 
 
 @app.get("/repos/{repo_id}/search")

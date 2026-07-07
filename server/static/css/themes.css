@@ -1,0 +1,10 @@
+:root{
+  --ink:#0B1220;--panel:#101A2D;--panel2:#0E1626;--line:#1E2B45;
+  --text:#DCE4F2;--muted:#8A97B0;--blast:#FF5C38;--safe:#7FB4FF;
+  --safe-dim:#31456B;--ok:#4ADE9C;--warn:#EAB308;--class:#B48CFF;--pkg:#64748B;
+}
+[data-theme="light"]{
+  --ink:#F5F7FB;--panel:#FFFFFF;--panel2:#EEF2F9;--line:#D8E0EE;
+  --text:#1A2436;--muted:#5A6A85;--blast:#E8491F;--safe:#2563EB;
+  --safe-dim:#93A8CF;--ok:#0F9D6E;--warn:#B45309;--class:#7C3AED;--pkg:#64748B;
+}

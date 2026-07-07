@@ -76,3 +76,34 @@ def test_failed_analysis_surfaces_error(token):
     repos = client.get("/repos", headers=auth(token)).json()
     bad = next(x for x in repos if x["id"] == repo_id)
     assert bad["status"] == "failed" and "Not a directory" in bad["error"]
+
+
+def test_hotspots(token):
+    r = client.post("/repos", json={"name": "shop2", "source": SHOP}, headers=auth(token))
+    repo_id = r.json()["id"]
+    for _ in range(20):
+        if client.get("/repos", headers=auth(token)).json()[-1]["status"] == "ready":
+            break
+        time.sleep(0.2)
+    d = client.get(f"/repos/{repo_id}/hotspots", headers=auth(token)).json()
+    hs = d["hotspots"]
+    assert hs and hs[0]["risk"] >= hs[-1]["risk"]          # sorted desc
+    assert any("calc_tax" in h["id"] for h in hs)          # known hottest symbol present
+
+
+def test_health():
+    assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_health():
+    assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_demo_login():
+    d = client.post("/auth/demo").json()
+    assert d["email"] == "demo@blastradius.dev"
+    repos = client.get("/repos", headers=auth(d["token"])).json()
+    assert any(r["name"] == "click-demo" for r in repos)
+    # idempotent: second call reuses the same account/repo
+    d2 = client.post("/auth/demo").json()
+    assert client.get("/repos", headers=auth(d2["token"])).json()[0]["name"] == "click-demo"
