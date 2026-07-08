@@ -1,0 +1,2 @@
+{"edges": [["main.run", "util.fmt"]],
+ "notes": "from X import y resolution via import table."}

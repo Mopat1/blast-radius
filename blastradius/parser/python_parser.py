@@ -128,6 +128,12 @@ class PythonParser:
             self._register(node)
             self.doc.add_edge(parent, qname, EdgeKind.CONTAINS)
 
+            # register nested definitions (functions inside functions, local classes)
+            for inner_stmt in stmt.body:
+                if isinstance(inner_stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    self._declare(inner_stmt, module_qname, qname, rel, is_test_file,
+                                  in_class=in_class)
+
             if endpoint:
                 ep_id = f"endpoint:{endpoint['http_method']} {endpoint['route']}"
                 if ep_id not in self._defs:

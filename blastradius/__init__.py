@@ -4,9 +4,11 @@ from .engine import build_graph, BlastEngine, ImpactReport
 from .parser.python_parser import PythonParser
 from .diff import diff_impact, changed_ranges, DiffImpact, to_markdown
 from .coupling import compute_coupling, coupling_map
+from .evaluate import evaluate_all, evaluate_case, EvalResult
 
 __version__ = "0.1.0"
 __all__ = ["IRDocument", "IRNode", "IREdge", "NodeKind", "EdgeKind",
            "build_graph", "BlastEngine", "ImpactReport", "PythonParser",
            "diff_impact", "changed_ranges", "DiffImpact", "to_markdown",
-           "compute_coupling", "coupling_map"]
+           "compute_coupling", "coupling_map",
+           "evaluate_all", "evaluate_case", "EvalResult"]

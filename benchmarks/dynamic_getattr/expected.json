@@ -1,0 +1,2 @@
+{"edges": [["main.call", "main.API.ping"]],
+ "notes": "getattr(obj, name)() is string-based dispatch: expected recall miss."}

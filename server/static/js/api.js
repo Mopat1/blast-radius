@@ -47,6 +47,9 @@ export const ReposAPI = {
   impact:   (id,target)   => api(`/repos/${id}/impact?target=`+encodeURIComponent(target)),
   hotspots: id            => api(`/repos/${id}/hotspots`),
   search:   (id,q)        => api(`/repos/${id}/search?q=`+encodeURIComponent(q)),
+  explain:  (id,target)   => api(`/repos/${id}/explain`, {method:'POST', body:JSON.stringify({target})}),
+  getLayout:(id)          => api(`/repos/${id}/layout`),
+  putLayout:(id,layout)   => api(`/repos/${id}/layout`, {method:'PUT', body:JSON.stringify({layout})}),
   analyze:  id            => api(`/repos/${id}/analyze`, {method:'POST'}),
   remove:   id            => api(`/repos/${id}`, {method:'DELETE'}),
 };

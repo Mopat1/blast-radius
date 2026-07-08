@@ -1,0 +1,2 @@
+{"edges": [["main.Child.run", "main.Base.setup"]],
+ "notes": "self.x() falling back to the (unique) inherited method."}

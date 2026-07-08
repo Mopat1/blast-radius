@@ -45,6 +45,7 @@ class Repo(Base):
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     name: Mapped[str] = mapped_column(String(200))
     source: Mapped[str] = mapped_column(Text)          # git URL or local path
+    layout_json: Mapped[str] = mapped_column(Text, default="")   # saved dashboard layout
     status: Mapped[str] = mapped_column(String(20), default="pending")
     # pending | analyzing | ready | failed
     error: Mapped[str] = mapped_column(Text, default="")
@@ -77,6 +78,12 @@ def init_db() -> None:
         with engine.begin() as conn:
             from sqlalchemy import text
             conn.execute(text("ALTER TABLE analyses ADD COLUMN coupling_json TEXT DEFAULT '[]'"))
+    except Exception:
+        pass  # column already exists
+    try:
+        with engine.begin() as conn:
+            from sqlalchemy import text
+            conn.execute(text("ALTER TABLE repos ADD COLUMN layout_json TEXT DEFAULT ''"))
     except Exception:
         pass  # column already exists
 

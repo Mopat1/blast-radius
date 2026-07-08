@@ -107,3 +107,26 @@ def test_demo_login():
     # idempotent: second call reuses the same account/repo
     d2 = client.post("/auth/demo").json()
     assert client.get("/repos", headers=auth(d2["token"])).json()[0]["name"] == "click-demo"
+
+
+def test_layout_roundtrip(token):
+    r = client.post("/repos", json={"name": "shop3", "source": SHOP}, headers=auth(token))
+    repo_id = r.json()["id"]
+    assert client.get(f"/repos/{repo_id}/layout", headers=auth(token)).json()["layout"] is None
+    snap = {"positions": {"a": {"x": 1, "y": 2}}, "expanded": ["app"], "limit": "400"}
+    assert client.put(f"/repos/{repo_id}/layout", json={"layout": snap},
+                      headers=auth(token)).json() == {"ok": True}
+    assert client.get(f"/repos/{repo_id}/layout", headers=auth(token)).json()["layout"] == snap
+
+
+def test_explain_unconfigured_returns_503(token, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    for _ in range(20):
+        repos = client.get("/repos", headers=auth(token)).json()
+        ready = [x for x in repos if x["status"] == "ready"]
+        if ready:
+            break
+        time.sleep(0.2)
+    r = client.post(f"/repos/{ready[0]['id']}/explain", json={"target": "calc_tax"},
+                    headers=auth(token))
+    assert r.status_code == 503 and "ANTHROPIC_API_KEY" in r.json()["detail"]

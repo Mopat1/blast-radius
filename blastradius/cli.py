@@ -26,7 +26,7 @@ def _build(repo: str):
 
 
 @click.group()
-@click.version_option("0.3.0", prog_name="blastradius")
+@click.version_option("0.5.0", prog_name="blastradius")
 def main():
     """Know what breaks before you merge."""
 
@@ -166,6 +166,35 @@ def diff_cmd(repo, base, head, as_json, as_github, use_coupling):
     if d.unmapped_files:
         _section("changed outside functions (not analyzed)", d.unmapped_files)
     click.echo()
+
+
+@main.command("eval")
+@click.argument("benchmarks", type=click.Path(exists=True, file_okay=False),
+                default="benchmarks", required=False)
+@click.option("--json", "as_json", is_flag=True)
+@click.option("--markdown", "as_md", is_flag=True)
+def eval_cmd(benchmarks, as_json, as_md):
+    """Precision/recall of call resolution against the benchmark suite."""
+    from .evaluate import evaluate_all, to_markdown
+    res = evaluate_all(benchmarks)
+    if as_json:
+        click.echo(json.dumps(res.to_dict(), indent=2))
+        return
+    if as_md:
+        click.echo(to_markdown(res))
+        return
+    click.secho("\ncall-resolution evaluation", bold=True)
+    for case in res.cases:
+        color = "green" if case.f1 == 1.0 else "yellow" if case.f1 > 0 else "red"
+        click.echo("  %s  P=%.2f R=%.2f F1=%.2f  %s" % (
+            click.style("%-22s" % case.name, fg=color),
+            case.precision, case.recall, case.f1, case.notes))
+        for m in case.missing:
+            click.echo("      missed: %s -> %s" % (m[0], m[1]))
+        for s in case.spurious:
+            click.echo("      spurious: %s -> %s" % (s[0], s[1]))
+    click.secho("\n  overall: precision=%.2f recall=%.2f f1=%.2f  (%d TP, %d FP, %d FN)\n"
+                % (res.precision, res.recall, res.f1, res.tp, res.fp, res.fn), bold=True)
 
 
 @main.command()

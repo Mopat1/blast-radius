@@ -1,0 +1,2 @@
+{"edges": [["main.run", "util.fn"]],
+ "notes": "import X; X.fn() attribute-chain resolution."}

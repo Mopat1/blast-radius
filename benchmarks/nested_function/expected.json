@@ -1,0 +1,2 @@
+{"edges": [["main.outer", "main.outer.inner"]],
+ "notes": "Call to a function defined in the enclosing scope."}

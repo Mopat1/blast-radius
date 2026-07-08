@@ -1,0 +1,2 @@
+{"edges": [["main.safe", "a.work"]],
+ "notes": "Imported name resolves; ambiguous x.work() must NOT guess (precision)."}

@@ -53,7 +53,7 @@ init_db()
 @app.get("/health", include_in_schema=False)
 def health():
     """Deployment health check (configure this path in Render)."""
-    return {"status": "ok", "version": "0.4.0"}
+    return {"status": "ok", "version": "0.5.0"}
 
 
 DEMO_EMAIL = "demo@blastradius.dev"
@@ -88,6 +88,14 @@ STATIC = Path(__file__).parent / "static"
 class Credentials(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
+
+
+class ExplainIn(BaseModel):
+    target: str
+
+
+class LayoutIn(BaseModel):
+    layout: dict
 
 
 class RepoIn(BaseModel):
@@ -215,6 +223,54 @@ def hotspots(repo_id: int, limit: int = 10, user: User = Depends(current_user),
             })
     scored.sort(key=lambda x: -x["risk"])
     return {"hotspots": scored[:max(1, min(limit, 50))]}
+
+
+@app.post("/repos/{repo_id}/explain")
+def explain(repo_id: int, body: ExplainIn, user: User = Depends(current_user),
+            db: Session = Depends(get_db)):
+    """AI reviewer note for a target's blast radius (needs ANTHROPIC_API_KEY)."""
+    from . import ai
+    from blastradius import coupling_map
+    if not ai.is_configured():
+        raise HTTPException(503, "AI explanations are not configured on this server "
+                                 "(set ANTHROPIC_API_KEY).")
+    repo = _owned(repo_id, user, db)
+    doc = _doc(repo_id, user, db)
+    engine = BlastEngine(build_graph(doc))
+    matches = engine.find(body.target)
+    if not matches:
+        raise HTTPException(404, f"No node matching {body.target!r}")
+    if len(matches) > 1 and body.target not in matches:
+        raise HTTPException(400, "Ambiguous target; pass a fully qualified name.")
+    cmap = None
+    try:
+        import json as _json
+        pairs = _json.loads(repo.analysis.coupling_json or "[]")
+        cmap = coupling_map(pairs) if pairs else None
+    except Exception:
+        cmap = None
+    report = engine.blast_radius(matches[0], coupling=cmap).to_dict()
+    try:
+        text = ai.explain_impact(report)
+    except Exception as exc:
+        raise HTTPException(502, f"AI request failed: {exc}")
+    return {"target": matches[0], "explanation": text}
+
+
+@app.get("/repos/{repo_id}/layout")
+def get_layout(repo_id: int, user: User = Depends(current_user),
+               db: Session = Depends(get_db)):
+    repo = _owned(repo_id, user, db)
+    return {"layout": json.loads(repo.layout_json) if repo.layout_json else None}
+
+
+@app.put("/repos/{repo_id}/layout")
+def put_layout(repo_id: int, body: LayoutIn, user: User = Depends(current_user),
+               db: Session = Depends(get_db)):
+    repo = _owned(repo_id, user, db)
+    repo.layout_json = json.dumps(body.layout)
+    db.commit()
+    return {"ok": True}
 
 
 @app.get("/repos/{repo_id}/search")

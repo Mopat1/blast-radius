@@ -4,6 +4,7 @@ import { ReposAPI } from './api.js';
 import * as graph from './graph.js';
 import * as repos from './repos.js';
 import { restoreOverview, setClearVisible } from './ui.js';
+import { toast } from './utils.js';
 
 export async function detonate(id){
   const rid = repos.current();
@@ -69,8 +70,30 @@ function renderPanel(d){
     <div class="mono" style="font-size:.8rem;word-break:break-all">${d.target}</div>
     ${src ? `<div class="nodemeta">${src.kind} · ${src.file}:${src.line}</div>` : ''}
     <div class="risk ${d.risk_level}">${d.risk_score} <span style="font-size:.8rem">${d.risk_level}</span></div>
-    <div class="mono" style="color:var(--muted);font-size:.75rem">call depth ${d.call_depth}</div>`;
+    <div class="mono" style="color:var(--muted);font-size:.75rem">call depth ${d.call_depth}</div>
+    <button class="b-mini" id="aiBtn" style="margin-top:10px"
+            data-tip="AI reviewer note: what could break and what to check. Uses the graph, not your raw code.">✨ explain this impact</button>
+    <div id="aiOut"></div>`;
   box.appendChild(head);
+  const btn = head.querySelector('#aiBtn');
+  btn.addEventListener('click', async ()=>{
+    const out = head.querySelector('#aiOut');
+    btn.disabled = true; btn.textContent = 'thinking…';
+    try{
+      const rid = repos.current();
+      const res = await ReposAPI.explain(rid, d.target);
+      out.innerHTML = '';
+      const s = document.createElement('div'); s.className = 'sect';
+      s.innerHTML = '<div class="t">AI review note</div>';
+      const p = document.createElement('p'); p.className = 'hintp';
+      p.textContent = res.explanation;
+      s.appendChild(p); out.appendChild(s);
+      btn.remove();
+    }catch(e){
+      toast(e.message);
+      btn.disabled = false; btn.textContent = '✨ explain this impact';
+    }
+  });
   box.appendChild(section('affected functions', d.affected_functions));
   box.appendChild(section('affected endpoints', d.affected_endpoints));
   box.appendChild(section('tests to run', d.affected_tests));

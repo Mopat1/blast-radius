@@ -1,0 +1,2 @@
+{"edges": [["main.caller", "main.helper"]],
+ "notes": "Baseline: direct call within one module."}

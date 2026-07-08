@@ -1,0 +1,2 @@
+{"edges": [["main.run", "main.task"]],
+ "notes": "Calls to decorated functions still resolve by name."}

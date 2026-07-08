@@ -1,0 +1,2 @@
+{"edges": [["main.run", "main.apply"], ["main.apply", "main.target"]],
+ "notes": "fn() through a parameter is dynamic dispatch: expected recall miss."}

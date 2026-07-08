@@ -1,0 +1,2 @@
+{"edges": [["main.Job.run", "main.Job.prepare"]],
+ "notes": "self.x() resolved within the same class."}

@@ -15,7 +15,7 @@ import * as hero from './hero.js';
 async function openRepo(id){
   let full;
   try{ full = await ReposAPI.graph(id); }catch(e){ return; }
-  graph.open(full, layouts.load(id));
+  graph.open(full, await layouts.load(id));
   $('empty').style.display='none';
   ui.overviewLoading();
   ui.setClearVisible(false);

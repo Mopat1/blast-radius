@@ -109,6 +109,51 @@ of any Python repo. Every PR gets an auto-updating comment with the
 combined risk score, per-function breakdown, exposed endpoints, and the
 exact tests to run.
 
+## Measured accuracy (Milestone 6)
+
+Call resolution is evaluated against a curated benchmark suite
+(`benchmarks/`, PyCG-style): 12 categories from trivial to known-hard,
+each with hand-annotated ground-truth edges. Run it yourself:
+
+```bash
+blastradius eval benchmarks
+```
+
+| Case | P | R | F1 | Notes |
+|---|---|---|---|---|
+| ambiguous_name | 1.00 | 1.00 | 1.00 | Imported name resolves; ambiguous x.work() must NOT guess (precision). |
+| decorator | 1.00 | 1.00 | 1.00 | Calls to decorated functions still resolve by name. |
+| direct_call | 1.00 | 1.00 | 1.00 | Baseline: direct call within one module. |
+| dynamic_getattr | 1.00 | 0.00 | 0.00 | getattr(obj, name)() is string-based dispatch: expected recall miss. |
+| higher_order | 1.00 | 0.50 | 0.67 | fn() through a parameter is dynamic dispatch: expected recall miss. |
+| import_alias | 1.00 | 1.00 | 1.00 | Aliased module and aliased symbol imports. |
+| import_from | 1.00 | 1.00 | 1.00 | from X import y resolution via import table. |
+| import_module | 1.00 | 1.00 | 1.00 | import X; X.fn() attribute-chain resolution. |
+| inheritance_call | 1.00 | 1.00 | 1.00 | self.x() falling back to the (unique) inherited method. |
+| method_unique | 1.00 | 1.00 | 1.00 | obj.method() resolved because the method name is globally unique. |
+| nested_function | 1.00 | 1.00 | 1.00 | Call to a function defined in the enclosing scope. |
+| self_method | 1.00 | 1.00 | 1.00 | self.x() resolved within the same class. |
+| **overall (micro)** | **1.00** | **0.86** | **0.92** | 12 TP · 0 FP · 2 FN |
+
+
+**Precision is 1.0 by design** — the resolver never guesses: ambiguous
+names produce no edge. The only recall misses are genuinely dynamic
+dispatch (`getattr(obj, name)()` and calls through function-valued
+parameters), which no purely static analyzer resolves. The suite runs in
+CI on every push, and building it immediately caught a real parser bug
+(nested function definitions were not being registered).
+
+## AI review notes (Milestone 6)
+
+With `ANTHROPIC_API_KEY` set on the server, every impact report gets an
+**✨ explain** button: the impact data (never your raw code) is sent to
+Claude, which writes a reviewer-style note — what realistically breaks,
+why the risk is at this level, which tests and hidden dependencies to
+check. Without the key the feature degrades gracefully (503).
+
+Saved layouts now also sync to your account (server-side), with
+localStorage as offline fallback.
+
 ## Temporal coupling — hidden dependencies (Milestone 5)
 
 Static call graphs can't see every dependency: a config module and the
