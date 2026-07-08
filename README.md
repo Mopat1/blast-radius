@@ -109,6 +109,29 @@ of any Python repo. Every PR gets an auto-updating comment with the
 combined risk score, per-function breakdown, exposed endpoints, and the
 exact tests to run.
 
+## Temporal coupling — hidden dependencies (Milestone 5)
+
+Static call graphs can't see every dependency: a config module and the
+code that reads it, a serializer and its schema, duplicated logic kept in
+sync by hand. Git history can.
+
+```bash
+blastradius coupling .                      # top co-changing file pairs
+blastradius impact . -t calc_tax --coupling # blast radius + hidden deps
+blastradius diff . --coupling --github      # PR comment with a warning section
+```
+
+Files that co-change with the target (strength = together / min(changes),
+window = last 300 commits, noise-filtered) but sit **outside** the static
+blast radius are flagged as hidden dependencies — each adds 0.15 to risk:
+
+```
+risk = 0.4*callers + 0.3*endpoints + 0.2*tests + 0.1*depth + 0.15*hidden_deps
+```
+
+BlastRadius Cloud computes coupling during analysis (clones now keep 300
+commits of history) and shows hidden dependencies in the impact panel.
+
 ## BlastRadius Cloud (Milestone 2)
 
 A FastAPI backend + single-page dashboard on top of the engine.

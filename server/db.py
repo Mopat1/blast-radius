@@ -62,6 +62,7 @@ class Analysis(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     repo_id: Mapped[int] = mapped_column(ForeignKey("repos.id"), unique=True)
     ir_json: Mapped[str] = mapped_column(Text)          # serialized IRDocument
+    coupling_json: Mapped[str] = mapped_column(Text, default="[]")  # co-change pairs
     n_nodes: Mapped[int] = mapped_column(Integer, default=0)
     n_edges: Mapped[int] = mapped_column(Integer, default=0)
     finished_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
@@ -71,6 +72,13 @@ class Analysis(Base):
 
 def init_db() -> None:
     Base.metadata.create_all(engine)
+    # lightweight migration for existing databases (SQLite + Postgres)
+    try:
+        with engine.begin() as conn:
+            from sqlalchemy import text
+            conn.execute(text("ALTER TABLE analyses ADD COLUMN coupling_json TEXT DEFAULT '[]'"))
+    except Exception:
+        pass  # column already exists
 
 
 def get_db():

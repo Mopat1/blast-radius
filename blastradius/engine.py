@@ -47,6 +47,7 @@ class ImpactReport:
     affected_files: list[str] = field(default_factory=list)
     affected_endpoints: list[str] = field(default_factory=list)
     affected_tests: list[str] = field(default_factory=list)
+    coupled_files: list = field(default_factory=list)   # hidden deps from git history
     call_depth: int = 0
     risk_score: float = 0.0
     risk_level: str = "LOW"
@@ -56,7 +57,7 @@ class ImpactReport:
 
 
 # Risk = 0.4·callers + 0.3·endpoints + 0.2·tests + 0.1·depth
-WEIGHTS = {"callers": 0.4, "endpoints": 0.3, "tests": 0.2, "depth": 0.1}
+WEIGHTS = {"callers": 0.4, "endpoints": 0.3, "tests": 0.2, "depth": 0.1, "coupled": 0.15}
 
 
 class BlastEngine:
@@ -74,7 +75,10 @@ class BlastEngine:
             if n.endswith("." + needle) or needle in n
         )
 
-    def blast_radius(self, target: str) -> ImpactReport:
+    def blast_radius(self, target: str, coupling: dict | None = None) -> ImpactReport:
+        """coupling: optional file->partners map (blastradius.coupling.coupling_map).
+        Co-changing files outside the static blast radius are reported as
+        hidden dependencies, each adding 0.15 to the risk score."""
         if target not in self.g:
             raise KeyError(f"Node not found in graph: {target!r}")
 
@@ -100,16 +104,25 @@ class BlastEngine:
             for n in affected if self.g.nodes[n].get("kind") != NodeKind.MODULE.value
         })
 
+        coupled = []
+        if coupling:
+            own_file = self.g.nodes[target].get("file", "")
+            seen = set(files)
+            coupled = [p["file"] for p in coupling.get(own_file, [])
+                       if p["file"] not in seen and p["file"] != own_file]
+
         n_callers, n_eps, n_tests = len(callers), len(endpoints), len(tests)
         risk = round(
             WEIGHTS["callers"] * n_callers
             + WEIGHTS["endpoints"] * n_eps
             + WEIGHTS["tests"] * n_tests
-            + WEIGHTS["depth"] * depth, 2,
+            + WEIGHTS["depth"] * depth
+            + WEIGHTS["coupled"] * len(coupled), 2,
         )
 
         return ImpactReport(
             target=target,
+            coupled_files=coupled,
             affected_functions=sorted(callers),
             affected_files=files,
             affected_endpoints=sorted(endpoints),

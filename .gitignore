@@ -5,6 +5,3 @@ dist/
 build/
 .venv/
 blastradius-graph.json
-.DS_Store
-**/.DS_Store
-blastradius.db

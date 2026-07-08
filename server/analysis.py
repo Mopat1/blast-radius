@@ -12,7 +12,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from blastradius import PythonParser
+import json
+
+from blastradius import PythonParser, compute_coupling
 
 from .db import SessionLocal, Repo, Analysis
 
@@ -33,11 +35,16 @@ def run_analysis(repo_id: int) -> None:
                 workdir, path = path
 
             doc = PythonParser(path).parse()
+            try:
+                pairs = compute_coupling(path)
+            except Exception:
+                pairs = []
 
             db.query(Analysis).filter_by(repo_id=repo.id).delete()
             db.add(Analysis(
                 repo_id=repo.id,
                 ir_json=doc.to_json(indent=0),
+                coupling_json=json.dumps(pairs),
                 n_nodes=len(doc.nodes),
                 n_edges=len(doc.edges),
             ))
@@ -59,7 +66,7 @@ def _materialize(source: str):
     if source.startswith(("http://", "https://", "git@")):
         tmpdir = tempfile.mkdtemp(prefix="blastradius-")
         subprocess.run(
-            ["git", "clone", "--depth", "1", source, tmpdir],
+            ["git", "clone", "--depth", "300", source, tmpdir],
             check=True, capture_output=True, timeout=300,
         )
         return (tmpdir, tmpdir)

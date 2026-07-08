@@ -53,7 +53,7 @@ init_db()
 @app.get("/health", include_in_schema=False)
 def health():
     """Deployment health check (configure this path in Render)."""
-    return {"status": "ok", "version": "0.3.1"}
+    return {"status": "ok", "version": "0.4.0"}
 
 
 DEMO_EMAIL = "demo@blastradius.dev"
@@ -178,6 +178,8 @@ def graph(repo_id: int, user: User = Depends(current_user),
 @app.get("/repos/{repo_id}/impact")
 def impact(repo_id: int, target: str, user: User = Depends(current_user),
            db: Session = Depends(get_db)):
+    from blastradius import coupling_map
+    repo = _owned(repo_id, user, db)
     doc = _doc(repo_id, user, db)
     engine = BlastEngine(build_graph(doc))
     matches = engine.find(target)
@@ -185,7 +187,13 @@ def impact(repo_id: int, target: str, user: User = Depends(current_user),
         raise HTTPException(404, f"No node matching {target!r}")
     if len(matches) > 1 and target not in matches:
         return {"ambiguous": True, "candidates": matches[:20]}
-    return {"ambiguous": False, **engine.blast_radius(matches[0]).to_dict()}
+    cmap = None
+    try:
+        pairs = json.loads(repo.analysis.coupling_json or "[]")
+        cmap = coupling_map(pairs) if pairs else None
+    except Exception:
+        cmap = None
+    return {"ambiguous": False, **engine.blast_radius(matches[0], coupling=cmap).to_dict()}
 
 
 @app.get("/repos/{repo_id}/hotspots")

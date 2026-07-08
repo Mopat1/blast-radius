@@ -117,7 +117,7 @@ class DiffImpact:
 
 
 def diff_impact(repo: str | Path, base: str = "HEAD",
-                head: str | None = None) -> DiffImpact:
+                head: str | None = None, use_coupling: bool = False) -> DiffImpact:
     repo = Path(repo).resolve()
     ranges = changed_ranges(repo, base, head)
     result = DiffImpact(base=base, head=head or "WORKTREE")
@@ -126,12 +126,20 @@ def diff_impact(repo: str | Path, base: str = "HEAD",
 
     graph = build_graph(PythonParser(repo).parse())
     engine = BlastEngine(graph)
+    cmap = None
+    if use_coupling:
+        from .coupling import compute_coupling, coupling_map
+        try:
+            cmap = coupling_map(compute_coupling(repo))
+        except Exception:
+            cmap = None
     result.changed_functions, result.unmapped_files = functions_for_ranges(graph, ranges)
 
-    fns, files, eps, tests = set(), set(), set(), set()
+    fns, files, eps, tests, coupled = set(), set(), set(), set(), set()
     depth = 0
     for fid in result.changed_functions:
-        r = engine.blast_radius(fid)
+        r = engine.blast_radius(fid, coupling=cmap)
+        coupled.update(r.coupled_files)
         result.reports[fid] = r
         fns.update(r.affected_functions)
         files.update(r.affected_files)
@@ -140,12 +148,15 @@ def diff_impact(repo: str | Path, base: str = "HEAD",
         depth = max(depth, r.call_depth)
     fns -= set(result.changed_functions)        # changed nodes aren't their own impact
 
+    coupled -= files
     risk = round(WEIGHTS["callers"] * len(fns) + WEIGHTS["endpoints"] * len(eps)
-                 + WEIGHTS["tests"] * len(tests) + WEIGHTS["depth"] * depth, 2)
+                 + WEIGHTS["tests"] * len(tests) + WEIGHTS["depth"] * depth
+                 + WEIGHTS["coupled"] * len(coupled), 2)
     result.combined = ImpactReport(
         target="<combined>",
         affected_functions=sorted(fns), affected_files=sorted(files),
         affected_endpoints=sorted(eps), affected_tests=sorted(tests),
+        coupled_files=sorted(coupled),
         call_depth=depth, risk_score=risk, risk_level=_level(risk),
     )
     return result
@@ -185,6 +196,10 @@ def to_markdown(d: DiffImpact) -> str:
         lines += [f"- `{t}`" for t in c.affected_tests[:20]]
         if len(c.affected_tests) > 20:
             lines.append(f"- …and {len(c.affected_tests) - 20} more")
+    if c.coupled_files:
+        lines += ["", ("**\u26a0 Hidden dependencies** \u2014 these files historically "
+                       "change together with this code but are outside its static blast radius:")]
+        lines += ["- `%s`" % f for f in c.coupled_files[:8]]
     if d.unmapped_files:
         lines += ["", "<sub>Changes outside function bodies (not analyzed): "
                   + ", ".join(f"`{f}`" for f in d.unmapped_files) + "</sub>"]

@@ -52,7 +52,8 @@ function section(title, items){
   } else items.forEach(x=>{
     const li = document.createElement('li');
     li.textContent = x;
-    li.addEventListener('click', ()=>graph.focusSymbol(x));
+    if(graph.node(x)) li.addEventListener('click', ()=>graph.focusSymbol(x));
+    else li.classList.add('flat');
     ul.appendChild(li);
   });
   wrap.appendChild(ul);
@@ -74,4 +75,9 @@ function renderPanel(d){
   box.appendChild(section('affected endpoints', d.affected_endpoints));
   box.appendChild(section('tests to run', d.affected_tests));
   box.appendChild(section('affected files', d.affected_files));
+  if(d.coupled_files && d.coupled_files.length){
+    const s = section('hidden dependencies — co-change from git history', d.coupled_files);
+    s.title = 'These files historically change together with this code, but are outside its static blast radius.';
+    box.appendChild(s);
+  }
 }

@@ -26,7 +26,7 @@ def _build(repo: str):
 
 
 @click.group()
-@click.version_option("0.2.0", prog_name="blastradius")
+@click.version_option("0.3.0", prog_name="blastradius")
 def main():
     """Know what breaks before you merge."""
 
@@ -68,7 +68,9 @@ def analyze(repo):
 @click.argument("repo", type=click.Path(exists=True, file_okay=False))
 @click.option("--target", "-t", required=True, help="Function name (short or fully qualified).")
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
-def impact(repo, target, as_json):
+@click.option("--coupling", "use_coupling", is_flag=True,
+              help="Mine git history for hidden co-change dependencies.")
+def impact(repo, target, as_json, use_coupling):
     """Compute the blast radius of TARGET inside REPO."""
     _, g = _build(repo)
     engine = BlastEngine(g)
@@ -83,7 +85,14 @@ def impact(repo, target, as_json):
             click.echo(f"  {m}", err=True)
         sys.exit(1)
 
-    report = engine.blast_radius(matches[0])
+    cmap = None
+    if use_coupling:
+        from .coupling import compute_coupling, coupling_map
+        try:
+            cmap = coupling_map(compute_coupling(repo))
+        except Exception as exc:
+            click.secho('warning: coupling unavailable (%s)' % exc, fg='yellow', err=True)
+    report = engine.blast_radius(matches[0], coupling=cmap)
 
     if as_json:
         click.echo(json.dumps(report.to_dict(), indent=2))
@@ -98,6 +107,8 @@ def impact(repo, target, as_json):
     _section("affected files", report.affected_files)
     _section("affected endpoints", report.affected_endpoints)
     _section("tests to run", report.affected_tests)
+    if report.coupled_files:
+        _section("hidden dependencies (git co-change)", report.coupled_files)
     click.echo()
 
 
@@ -117,11 +128,13 @@ def _section(title, items):
 @click.option("--json", "as_json", is_flag=True, help="Machine-readable JSON.")
 @click.option("--github", "as_github", is_flag=True,
               help="Markdown formatted as a GitHub PR comment.")
-def diff_cmd(repo, base, head, as_json, as_github):
+@click.option("--coupling", "use_coupling", is_flag=True,
+              help="Include hidden co-change dependencies from git history.")
+def diff_cmd(repo, base, head, as_json, as_github, use_coupling):
     """Blast radius of everything that changed between two git refs."""
     from .diff import diff_impact, to_markdown
     try:
-        d = diff_impact(repo, base=base, head=head)
+        d = diff_impact(repo, base=base, head=head, use_coupling=use_coupling)
     except Exception as exc:
         click.secho(f"error: {exc}", fg="red", err=True)
         sys.exit(1)
@@ -148,8 +161,34 @@ def diff_cmd(repo, base, head, as_json, as_github):
     click.echo()
     _section("affected endpoints", c.affected_endpoints)
     _section("tests to run", c.affected_tests)
+    if c.coupled_files:
+        _section("hidden dependencies (git co-change)", c.coupled_files)
     if d.unmapped_files:
         _section("changed outside functions (not analyzed)", d.unmapped_files)
+    click.echo()
+
+
+@main.command()
+@click.argument("repo", type=click.Path(exists=True, file_okay=False))
+@click.option("--commits", default=300, show_default=True, help="History window.")
+@click.option("--top", default=15, show_default=True)
+def coupling(repo, commits, top):
+    """Files that historically change together (hidden dependencies)."""
+    from .coupling import compute_coupling
+    try:
+        pairs = compute_coupling(repo, max_commits=commits)
+    except Exception as exc:
+        click.secho("error: %s" % exc, fg="red", err=True)
+        sys.exit(1)
+    if not pairs:
+        click.echo("No significant co-change coupling found.")
+        return
+    click.secho("\ntemporal coupling - top %d of %d pairs" % (min(top, len(pairs)), len(pairs)), bold=True)
+    for p in pairs[:top]:
+        bar = "#" * int(p["strength"] * 10)
+        click.echo("  %s <-> %s  %s %.2f (%dx)" % (
+            click.style(p["a"], fg="cyan"), click.style(p["b"], fg="cyan"),
+            bar, p["strength"], p["together"]))
     click.echo()
 
 
