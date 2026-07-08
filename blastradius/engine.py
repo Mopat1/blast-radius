@@ -28,7 +28,7 @@ def build_graph(doc: IRDocument) -> nx.MultiDiGraph:
     known = doc.node_ids()
     for n in doc.nodes:
         g.add_node(n.id, kind=n.kind.value, name=n.name,
-                   file=n.file, line=n.line, **n.meta)
+                   file=n.file, line=n.line, end_line=n.end_line, **n.meta)
     for e in doc.edges:
         # keep only edges whose endpoints exist (drops unresolved externals)
         if e.src in known and e.dst in known:

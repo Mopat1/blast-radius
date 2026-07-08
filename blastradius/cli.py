@@ -26,7 +26,7 @@ def _build(repo: str):
 
 
 @click.group()
-@click.version_option("0.1.0", prog_name="blastradius")
+@click.version_option("0.2.0", prog_name="blastradius")
 def main():
     """Know what breaks before you merge."""
 
@@ -105,6 +105,51 @@ def _section(title, items):
     click.secho(f"  {title} ({len(items)})", bold=True)
     for item in items or ["—"]:
         click.echo(f"    {item}")
+    click.echo()
+
+
+@main.command("diff")
+@click.argument("repo", type=click.Path(exists=True, file_okay=False))
+@click.option("--base", default="HEAD", show_default=True,
+              help="Git ref to diff against (e.g. origin/main).")
+@click.option("--head", default=None,
+              help="Git ref for the new side. Omit to use the working tree.")
+@click.option("--json", "as_json", is_flag=True, help="Machine-readable JSON.")
+@click.option("--github", "as_github", is_flag=True,
+              help="Markdown formatted as a GitHub PR comment.")
+def diff_cmd(repo, base, head, as_json, as_github):
+    """Blast radius of everything that changed between two git refs."""
+    from .diff import diff_impact, to_markdown
+    try:
+        d = diff_impact(repo, base=base, head=head)
+    except Exception as exc:
+        click.secho(f"error: {exc}", fg="red", err=True)
+        sys.exit(1)
+
+    if as_json:
+        click.echo(json.dumps(d.to_dict(), indent=2))
+        return
+    if as_github:
+        click.echo(to_markdown(d))
+        return
+
+    if not d.changed_functions:
+        click.echo(f"No Python function changes between {d.base} and {d.head}.")
+        return
+    c = d.combined
+    color = {"HIGH": "red", "MEDIUM": "yellow", "LOW": "green"}[c.risk_level]
+    click.secho(f"\n{BLAST} diff impact: {d.base} -> {d.head}", bold=True)
+    click.echo(f"  combined risk: {click.style(f'{c.risk_score} ({c.risk_level})', fg=color, bold=True)}"
+               f"   call depth: {c.call_depth}\n")
+    click.secho(f"  changed functions ({len(d.changed_functions)})", bold=True)
+    for fid, r in sorted(d.reports.items(), key=lambda kv: -kv[1].risk_score):
+        rc = {"HIGH": "red", "MEDIUM": "yellow", "LOW": "green"}[r.risk_level]
+        click.echo(f"    {click.style(f'{r.risk_score:>6.1f}', fg=rc)}  {fid}")
+    click.echo()
+    _section("affected endpoints", c.affected_endpoints)
+    _section("tests to run", c.affected_tests)
+    if d.unmapped_files:
+        _section("changed outside functions (not analyzed)", d.unmapped_files)
     click.echo()
 
 

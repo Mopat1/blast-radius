@@ -116,3 +116,5 @@ main::before{content:'';position:absolute;inset:0;pointer-events:none;
 [data-tip]:hover::before{
   content:'';position:absolute;top:calc(100% + 4px);left:50%;transform:translateX(-50%) rotate(45deg);
   width:8px;height:8px;background:var(--panel);border-left:1px solid var(--line);border-top:1px solid var(--line);z-index:100;pointer-events:none}
+
+.ver{color:var(--muted);font-size:.65rem;text-align:center;margin-top:14px;opacity:.65}

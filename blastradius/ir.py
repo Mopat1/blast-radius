@@ -41,6 +41,7 @@ class IRNode:
     name: str                    # short name, e.g. "charge"
     file: str                    # relative file path
     line: int = 0
+    end_line: int = 0            # inclusive last line of the definition
     meta: dict = field(default_factory=dict)   # e.g. {"http_method": "POST", "route": "/checkout"}
 
 
@@ -92,7 +93,8 @@ class IRDocument:
         for n in data["nodes"]:
             doc.add_node(IRNode(
                 id=n["id"], kind=NodeKind(n["kind"]), name=n["name"],
-                file=n["file"], line=n.get("line", 0), meta=n.get("meta", {}),
+                file=n["file"], line=n.get("line", 0),
+                end_line=n.get("end_line", 0), meta=n.get("meta", {}),
             ))
         for e in data["edges"]:
             doc.add_edge(e["src"], e["dst"], EdgeKind(e["kind"]))

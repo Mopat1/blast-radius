@@ -1,5 +1,5 @@
 /* Entry point: coordinates all modules. */
-import { $, toast } from './utils.js';
+import { $, toast, APP_VERSION } from './utils.js';
 import { ReposAPI } from './api.js';
 import * as auth from './auth.js';
 import * as repos from './repos.js';
@@ -32,6 +32,8 @@ function safe(name, fn){
 }
 
 window.addEventListener('DOMContentLoaded', ()=>{
+  console.log('BlastRadius frontend v' + APP_VERSION);
+  document.querySelectorAll('.ver').forEach(el => el.textContent = 'frontend v' + APP_VERSION);
   safe('auth',   ()=>auth.init(()=>repos.init(openRepo)));   // login first, always
   safe('theme',  ()=>theme.init(()=>graph.restyle()));
   safe('ui',     ()=>ui.init());

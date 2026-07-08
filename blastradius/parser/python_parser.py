@@ -98,7 +98,8 @@ class PythonParser:
         elif isinstance(stmt, ast.ClassDef):
             qname = f"{parent}.{stmt.name}"
             self._register(IRNode(id=qname, kind=NodeKind.CLASS, name=stmt.name,
-                                  file=rel, line=stmt.lineno))
+                                  file=rel, line=stmt.lineno,
+                                  end_line=getattr(stmt, "end_lineno", stmt.lineno) or stmt.lineno))
             self.doc.add_edge(parent, qname, EdgeKind.CONTAINS)
             for base in stmt.bases:
                 base_name = _dotted(base)
@@ -120,7 +121,8 @@ class PythonParser:
             else:
                 kind = NodeKind.FUNCTION
 
-            node = IRNode(id=qname, kind=kind, name=stmt.name, file=rel, line=stmt.lineno)
+            node = IRNode(id=qname, kind=kind, name=stmt.name, file=rel, line=stmt.lineno,
+                          end_line=getattr(stmt, "end_lineno", stmt.lineno) or stmt.lineno)
             if endpoint:
                 node.meta.update(endpoint)
             self._register(node)

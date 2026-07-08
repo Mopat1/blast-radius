@@ -92,11 +92,11 @@ def test_hotspots(token):
 
 
 def test_health():
-    assert client.get("/health").json() == {"status": "ok"}
+    assert client.get("/health").json()["status"] == "ok"
 
 
 def test_health():
-    assert client.get("/health").json() == {"status": "ok"}
+    assert client.get("/health").json()["status"] == "ok"
 
 
 def test_demo_login():

@@ -6,4 +6,4 @@ build/
 .venv/
 blastradius-graph.json
 .DS_Store
-blastradius.db
+**/.DS_Store

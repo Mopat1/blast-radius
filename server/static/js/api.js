@@ -15,8 +15,23 @@ export async function api(path, opts = {}){
     ...(token() ? {Authorization:'Bearer '+token()} : {}), ...(opts.headers||{})
   }});
   if(r.status===401 && token()){ onAuthFail && onAuthFail(); throw new Error('session expired'); }
-  if(!r.ok){ const d = await r.json().catch(()=>({})); throw new Error(d.detail||r.statusText); }
+  if(!r.ok){
+    const d = await r.json().catch(()=>({}));
+    throw new Error(formatDetail(d.detail) || r.statusText);
+  }
   return r.status===204 ? null : r.json();
+}
+
+/* FastAPI 422s return detail as an array of {loc, msg} — make it readable. */
+function formatDetail(detail){
+  if(!detail) return '';
+  if(typeof detail === 'string') return detail;
+  if(Array.isArray(detail))
+    return detail.map(x => {
+      const field = (x.loc||[]).filter(p => p!=='body').join('.');
+      return (field ? field+': ' : '') + (x.msg || JSON.stringify(x));
+    }).join(' · ');
+  return JSON.stringify(detail);
 }
 
 export const AuthAPI = {

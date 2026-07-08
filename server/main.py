@@ -53,7 +53,7 @@ init_db()
 @app.get("/health", include_in_schema=False)
 def health():
     """Deployment health check (configure this path in Render)."""
-    return {"status": "ok"}
+    return {"status": "ok", "version": "0.3.1"}
 
 
 DEMO_EMAIL = "demo@blastradius.dev"

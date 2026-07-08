@@ -1,3 +1,4 @@
+export const APP_VERSION = '0.3.1';
 /* Shared helpers: DOM, storage, colors, toast, downloads. */
 export const $ = id => document.getElementById(id);
 export const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();

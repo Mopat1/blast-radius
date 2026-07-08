@@ -87,6 +87,28 @@ pytest
 - [ ] Milestone 3 — GitHub App, VS Code extension, AI assistant
 
 
+## Diff-aware analysis (Milestone 4)
+
+Don't tell BlastRadius what changed — let git do it:
+
+```bash
+blastradius diff .                                  # your uncommitted changes vs HEAD
+blastradius diff . --base origin/main --head HEAD   # a PR branch vs its target
+blastradius diff . --github                         # Markdown PR comment
+blastradius diff . --json                           # machine-readable
+```
+
+It parses the git diff, maps changed line ranges onto function spans,
+and unions the blast radii of every changed function into one combined
+risk report.
+
+### PR comments on every pull request
+
+Copy `examples/github-action/blastradius.yml` into `.github/workflows/`
+of any Python repo. Every PR gets an auto-updating comment with the
+combined risk score, per-function breakdown, exposed endpoints, and the
+exact tests to run.
+
 ## BlastRadius Cloud (Milestone 2)
 
 A FastAPI backend + single-page dashboard on top of the engine.
