@@ -14,7 +14,7 @@ dependencies = ["networkx>=3.0", "click>=8.1"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.4", "httpx>=0.27"]
-server = ["httpx>=0.27", "fastapi>=0.110", "uvicorn[standard]>=0.29", "sqlalchemy>=2.0", "pyjwt>=2.8", "email-validator>=2.0", "psycopg2-binary>=2.9"]
+server = ["httpx>=0.27", "fastapi>=0.110", "uvicorn[standard]>=0.29","google-genai>=1.0.0", "sqlalchemy>=2.0", "pyjwt>=2.8", "email-validator>=2.0", "psycopg2-binary>=2.9"]
 
 [project.scripts]
 blastradius = "blastradius.cli:main"
