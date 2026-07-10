@@ -1,12 +1,27 @@
 # BlastRadius
 
-**Know what breaks before you merge.**
+> **Know what breaks before you merge.**
 
-BlastRadius builds a dependency graph of your codebase and computes the *blast radius* of a code change — affected functions, files, API endpoints, tests to run, and a risk score — before CI fails and before production notices.
+[![CI](https://github.com/Mopat1/blast-radius/actions/workflows/ci.yml/badge.svg)](https://github.com/Mopat1/blast-radius/actions)
+**Live app:** https://blast-radius-nwtn.onrender.com · try the demo button, no signup.
+
+BlastRadius parses your codebase into a dependency graph and computes the
+**blast radius** of any change: affected functions, API endpoints, the
+exact tests to run, hidden co-change dependencies from git history, and a
+risk score — in the CLI, on a live dashboard, and as automatic comments
+on GitHub pull requests.
 
 ```
-Repository → Parser → IR → Graph Builder → Graph → Blast Engine → CLI / JSON
+Repository → Parser → IR → Graph → Blast Engine → CLI · Dashboard · PR comments · AI notes
 ```
+
+**Measured, not claimed:** call resolution scores **precision 1.00 ·
+recall 0.86 · F1 0.92** on a ground-truth benchmark suite that runs in CI
+(see [Measured accuracy](#measured-accuracy-milestone-6)). Scales to real
+codebases — pallets/click (1,312 symbols, 5,124 edges) parses in under a
+second.
+
+<!-- screenshots: see docs/APPLICATION_KIT.md for the shot list -->
 
 ## Install
 

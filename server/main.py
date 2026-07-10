@@ -53,11 +53,12 @@ init_db()
 @app.get("/health", include_in_schema=False)
 def health():
     """Deployment health check (configure this path in Render)."""
-    return {"status": "ok", "version": "0.6.0"}
+    return {"status": "ok", "version": "0.7.0"}
 
 
 DEMO_EMAIL = "demo@blastradius.dev"
-DEMO_REPO_SOURCE = "https://github.com/pallets/click"
+DEMO_REPO_SOURCE = _os.environ.get("BLASTRADIUS_DEMO_REPO",
+                                  "https://github.com/pallets/click")
 
 
 @app.post("/auth/demo")

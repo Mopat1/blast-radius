@@ -39,7 +39,8 @@ export const libs = { get ready(){return LIBS_READY;}, get svg(){return HAS_SVG;
 /* ---------------- state ---------------------------------------------- */
 let FULL=null, DEG={}, PKG={}, NODE={};
 let expanded=new Set(), hiddenKinds=new Set();
-let cy=null, pendingFocus=null;
+let cy=null, pendingFocus=null, pendingPath=null;
+let CALLADJ = {};   // src -> [dst] over CALLS edges, for path finding
 let handlers={ onSymbolTap:null, onBackgroundTap:null };
 
 export const node = id => NODE[id];
@@ -99,10 +100,12 @@ export function open(fullGraph, saved){
   FULL = fullGraph;
   DEG={}; PKG={}; NODE={};
   FULL.nodes.forEach(n=>{ NODE[n.id]=n; if(n.kind!=='module') PKG[n.id]=pkgOf(n); });
+  CALLADJ = {};
   FULL.edges.forEach(e=>{
     if(['CALLS','EXPOSES','TESTS','INHERITS'].includes(e.kind)){
       DEG[e.src]=(DEG[e.src]||0)+1; DEG[e.dst]=(DEG[e.dst]||0)+1;
     }
+    if(e.kind==='CALLS') (CALLADJ[e.src]=CALLADJ[e.src]||[]).push(e.dst);
   });
   if(saved){
     expanded = new Set(saved.expanded||[]);
@@ -216,6 +219,9 @@ function buildStyle(n=0){
     {selector:'node.origin', style:{'background-color':cssVar('--blast'),'border-width':3,'border-color':cssVar('--text'),'border-style':'solid','z-index':10,'text-opacity':1,'color':cssVar('--text')}},
     {selector:'edge.impacted', style:{'line-color':cssVar('--blast'),'width':2.5,'opacity':1,'z-index':9}},
     {selector:'.dim', style:{'opacity':.15}},
+    {selector:'node.path', style:{'border-width':3,'border-color':cssVar('--warn'),
+      'border-style':'solid','opacity':1,'z-index':12,'color':cssVar('--text'),'text-opacity':1}},
+    {selector:'edge.pathedge', style:{'line-color':cssVar('--warn'),'width':3,'opacity':1,'z-index':12}},
   ];
 }
 export function restyle(){ if(cy){ cy.style(buildStyle(cy.elements().length)); updateMinimapImage(); } }
@@ -292,6 +298,7 @@ export function render(opts={}){
     } else cy.fit(undefined, 40);
     updateMinimapImage();
     if(pendingFocus){ const id=pendingFocus; pendingFocus=null; focusSymbol(id); }
+    if(pendingPath){ const p=pendingPath; pendingPath=null; applyPath(p); }
   });
   layout.run();
 
@@ -391,7 +398,7 @@ export function visibleElementFor(id){
 }
 
 export function clearClasses(){
-  if(cy) cy.elements().removeClass('impacted origin dim faded hoverlbl hovered');
+  if(cy) cy.elements().removeClass('impacted origin dim faded hoverlbl hovered path pathedge');
   throttleDrawMinimap();
 }
 
@@ -435,4 +442,63 @@ function drawMinimap(){
 function throttleDrawMinimap(){
   if(mmRaf) return;
   mmRaf = requestAnimationFrame(()=>{ mmRaf=0; drawMinimap(); });
+}
+
+
+/* ---------------- call-path explainer ----------------
+   Why does changing `target` affect `caller`? Shortest CALLS chain:
+   caller -> ... -> target. Computed client-side from the full IR. */
+export function findCallPath(fromId, toId){
+  if(fromId===toId) return [fromId];
+  const prev = {[fromId]: null};
+  let frontier = [fromId];
+  while(frontier.length){
+    const nxt = [];
+    for(const cur of frontier){
+      for(const n of (CALLADJ[cur]||[])){
+        if(!(n in prev)){
+          prev[n] = cur;
+          if(n===toId){
+            const path=[toId]; let p=cur;
+            while(p!==null){ path.push(p); p=prev[p]; }
+            return path.reverse();
+          }
+          nxt.push(n);
+        }
+      }
+    }
+    frontier = nxt;
+  }
+  return null;
+}
+
+export function showCallPath(pathIds){
+  if(!cy || !pathIds || pathIds.length<2) return;
+  const need = pathIds.filter(id=>PKG[id]!==undefined && !expanded.has(PKG[id]));
+  if(need.length){
+    need.forEach(id=>expanded.add(PKG[id]));
+    pendingPath = pathIds;
+    render();
+    return;
+  }
+  applyPath(pathIds);
+}
+
+function applyPath(pathIds){
+  ensureVisible(pathIds);
+  cy.elements().removeClass('path pathedge');
+  const els = pathIds.map(id=>cy.getElementById(id)).filter(e=>e.length);
+  els.forEach(e=>e.addClass('path'));
+  for(let i=0;i<pathIds.length-1;i++){
+    const a=pathIds[i], b=pathIds[i+1];
+    cy.edges().filter(e =>
+      (e.source().id()===a && e.target().id()===b) ||
+      (e.source().id()===b && e.target().id()===a)
+    ).addClass('pathedge');
+  }
+  if(els.length){
+    const coll = cy.collection(); els.forEach(e=>coll.merge(e));
+    cy.animate({fit:{eles:coll, padding:90}, duration:350});
+  }
+  updateMinimapImage();
 }

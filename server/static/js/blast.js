@@ -40,12 +40,34 @@ export async function detonate(id){
 
 export function clear(){
   history.replaceState(null, '', location.pathname);
+  lastTarget = null;
   graph.clearClasses();
   setClearVisible(false);
   restoreOverview();
 }
 
-function section(title, items){
+let lastTarget = null;
+
+function showPath(fromId){
+  if(!lastTarget) return;
+  const path = graph.findCallPath(fromId, lastTarget);
+  if(!path){ graph.focusSymbol(fromId); return; }
+  graph.showCallPath(path);
+  const box = document.getElementById('pathBox');
+  if(box){
+    box.innerHTML = '<div class="t">call chain — why this is affected</div>' +
+      '<div class="chain">' + path.map((id,i)=>
+        '<span class="hop mono" data-i="'+i+'">'+id.split('.').slice(-2).join('.')+'</span>'
+      ).join('<span class="arrow">→</span>') + '</div>';
+    box.querySelectorAll('.hop').forEach((el,i)=>{
+      el.title = path[i];
+      el.addEventListener('click', ()=>graph.focusSymbol(path[i]));
+    });
+    box.style.display = 'block';
+  }
+}
+
+function section(title, items, opts={}){
   const wrap = document.createElement('div'); wrap.className='sect';
   wrap.innerHTML = `<div class="t">${title} (${items.length})</div>`;
   const ul = document.createElement('ul');
@@ -54,7 +76,8 @@ function section(title, items){
   } else items.forEach(x=>{
     const li = document.createElement('li');
     li.textContent = x;
-    if(graph.node(x)) li.addEventListener('click', ()=>graph.focusSymbol(x));
+    if(opts.path && graph.node(x)) li.addEventListener('click', ()=>showPath(x));
+    else if(graph.node(x)) li.addEventListener('click', ()=>graph.focusSymbol(x));
     else li.classList.add('flat');
     ul.appendChild(li);
   });
@@ -82,7 +105,11 @@ function renderPanel(d){
   history.replaceState(null, '', '#r=' + repos.current() + '&t=' + encodeURIComponent(d.target));
   head.querySelector('#mdBtn').addEventListener('click', ()=>downloadReport(d));
   head.querySelector('#aiBtn').addEventListener('click', ()=>openAiModal(d));
-  box.appendChild(section('affected functions', d.affected_functions));
+  lastTarget = d.target;
+  const pathBox = document.createElement('div');
+  pathBox.id = 'pathBox'; pathBox.className = 'sect'; pathBox.style.display = 'none';
+  box.appendChild(pathBox);
+  box.appendChild(section('affected functions — click for call chain', d.affected_functions, {path:true}));
   box.appendChild(section('affected endpoints', d.affected_endpoints));
   box.appendChild(section('tests to run', d.affected_tests));
   box.appendChild(section('affected files', d.affected_files));

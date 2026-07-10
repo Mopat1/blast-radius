@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BlastRadius — Know what breaks before you merge</title>
+<meta name="description" content="BlastRadius tells you the impact of a code change before you merge it. Affected files, APIs, tests, and a risk score — from a dependency graph of your codebase." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0B1220;
+  --panel:#101A2D;
+  --panel-2:#0E1626;
+  --line:#1E2B45;
+  --text:#DCE4F2;
+  --muted:#8A97B0;
+  --blast:#FF5C38;       /* impacted */
+  --blast-soft:rgba(255,92,56,.14);
+  --safe:#7FB4FF;        /* structure / unaffected */
+  --safe-dim:#31456B;
+  --ok:#4ADE9C;
+  --radius:10px;
+  --maxw:1120px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--ink);
+  color:var(--text);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+  font-size:16px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--blast);color:#fff}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+h1,h2,h3{font-family:"Sora",sans-serif;line-height:1.15;letter-spacing:-.02em}
+.mono{font-family:"IBM Plex Mono",monospace}
+
+/* ---------- nav ---------- */
+nav{
+  position:sticky;top:0;z-index:50;
+  background:rgba(11,18,32,.82);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:64px}
+.logo{display:flex;align-items:center;gap:10px;font-family:"Sora";font-weight:700;font-size:1.05rem}
+.logo svg{display:block}
+.nav-links{display:flex;gap:28px;align-items:center;font-size:.92rem;color:var(--muted)}
+.nav-links a:hover{color:var(--text)}
+.btn{
+  display:inline-block;padding:11px 22px;border-radius:8px;
+  font-family:"Sora";font-weight:600;font-size:.92rem;
+  border:1px solid transparent;transition:transform .15s ease, box-shadow .15s ease;
+}
+.btn:hover{transform:translateY(-1px)}
+.btn-blast{background:var(--blast);color:#14100E;box-shadow:0 0 0 0 rgba(255,92,56,.35)}
+.btn-blast:hover{box-shadow:0 6px 24px -6px rgba(255,92,56,.55)}
+.btn-ghost{border-color:var(--line);color:var(--text)}
+.btn-ghost:hover{border-color:var(--safe)}
+
+/* ---------- hero ---------- */
+.hero{padding:88px 0 72px;position:relative;overflow:hidden}
+.hero-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center}
+.eyebrow{
+  font-family:"IBM Plex Mono",monospace;font-size:.78rem;letter-spacing:.12em;
+  color:var(--blast);text-transform:uppercase;margin-bottom:18px;
+}
+.hero h1{font-size:clamp(2.2rem,4.6vw,3.4rem);font-weight:800;margin-bottom:20px}
+.hero h1 em{font-style:normal;color:var(--blast)}
+.hero p.lede{color:var(--muted);font-size:1.08rem;max-width:34rem;margin-bottom:32px}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:22px}
+.hero-note{font-size:.85rem;color:var(--muted)}
+.hero-note .mono{color:var(--safe)}
+
+/* graph panel */
+.graph-card{
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:14px;position:relative;
+}
+.graph-head{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:4px 8px 12px;font-size:.78rem;color:var(--muted);
+}
+.risk-pill{
+  font-family:"IBM Plex Mono",monospace;font-size:.78rem;
+  padding:4px 12px;border-radius:99px;border:1px solid var(--line);
+  color:var(--muted);transition:all .3s ease;
+}
+.risk-pill.hot{border-color:var(--blast);color:var(--blast);background:var(--blast-soft)}
+#graph{width:100%;height:auto;display:block;cursor:pointer}
+.graph-hint{
+  text-align:center;font-size:.78rem;color:var(--muted);padding:10px 0 4px;
+  font-family:"IBM Plex Mono",monospace;
+}
+.node circle{transition:fill .35s ease, r .35s ease, stroke .35s ease}
+.node text{font-family:"IBM Plex Mono",monospace;font-size:9.5px;fill:var(--muted);pointer-events:none}
+.edge{stroke:var(--safe-dim);stroke-width:1.2;transition:stroke .4s ease, stroke-width .4s ease}
+.edge.hit{stroke:var(--blast);stroke-width:2}
+.node circle{fill:var(--panel-2);stroke:var(--safe);stroke-width:1.4}
+.node.hit circle{fill:var(--blast);stroke:var(--blast)}
+.node.hit text{fill:var(--text)}
+.node.origin circle{stroke:#fff;stroke-width:2}
+@keyframes pulse{0%{r:26;opacity:.6}100%{r:60;opacity:0}}
+.pulse{fill:none;stroke:var(--blast);stroke-width:2;animation:pulse 1.2s ease-out forwards}
+
+/* ---------- sections ---------- */
+section{padding:88px 0;border-top:1px solid var(--line)}
+.sec-eyebrow{
+  font-family:"IBM Plex Mono",monospace;font-size:.75rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--safe);margin-bottom:14px;
+}
+section h2{font-size:clamp(1.6rem,3vw,2.2rem);font-weight:700;margin-bottom:16px;max-width:36rem}
+.sec-lede{color:var(--muted);max-width:38rem;margin-bottom:44px}
+
+/* problem */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.compare .col{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:28px}
+.compare h3{font-size:1rem;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.tag{font-family:"IBM Plex Mono",monospace;font-size:.68rem;padding:3px 9px;border-radius:99px}
+.tag.re{background:rgba(255,92,56,.12);color:var(--blast)}
+.tag.pro{background:rgba(74,222,156,.12);color:var(--ok)}
+.compare ul{list-style:none}
+.compare li{padding:9px 0;border-bottom:1px dashed var(--line);color:var(--muted);font-size:.95rem}
+.compare li:last-child{border-bottom:none}
+.compare .col.good li{color:var(--text)}
+
+/* pipeline */
+.pipeline{display:flex;flex-wrap:wrap;gap:0;align-items:stretch;font-family:"IBM Plex Mono",monospace;font-size:.82rem}
+.pipe-step{
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:14px 18px;color:var(--text);white-space:nowrap;
+}
+.pipe-arrow{align-self:center;color:var(--safe-dim);padding:0 10px;font-size:1rem}
+.pipe-step.hl{border-color:var(--blast);color:var(--blast)}
+
+/* answers grid */
+.answers{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.ans{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px}
+.ans .q{font-family:"IBM Plex Mono",monospace;font-size:.85rem;color:var(--blast);margin-bottom:10px}
+.ans p{color:var(--muted);font-size:.93rem}
+
+/* risk formula */
+.formula{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:32px;font-family:"IBM Plex Mono",monospace;font-size:.95rem;line-height:2;
+  overflow-x:auto;
+}
+.formula .k{color:var(--blast)}
+.formula .w{color:var(--safe)}
+.formula .c{color:var(--muted)}
+
+/* ecosystem */
+.eco{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.eco-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px}
+.eco-card h3{font-size:1rem;margin-bottom:8px}
+.eco-card p{color:var(--muted);font-size:.9rem}
+.eco-card .badge{
+  font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--safe);display:block;margin-bottom:12px;
+}
+
+/* pricing */
+.plans{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.plan{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px;display:flex;flex-direction:column}
+.plan.pop{border-color:var(--blast)}
+.plan h3{font-size:1.05rem;margin-bottom:4px}
+.plan .for{font-size:.8rem;color:var(--muted);margin-bottom:18px}
+.plan ul{list-style:none;flex:1}
+.plan li{font-size:.88rem;color:var(--muted);padding:7px 0;border-bottom:1px dashed var(--line)}
+.plan li:last-child{border:none}
+.plan .pop-tag{font-family:"IBM Plex Mono",monospace;font-size:.65rem;color:var(--blast);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
+
+/* cta */
+.cta{padding:110px 0;text-align:center;border-top:1px solid var(--line)}
+.cta h2{max-width:none;margin-bottom:14px}
+.cta p{color:var(--muted);margin-bottom:32px}
+.cta .mono-q{font-family:"IBM Plex Mono",monospace;color:var(--safe);font-size:.95rem;display:block;margin-bottom:18px}
+
+footer{border-top:1px solid var(--line);padding:36px 0;color:var(--muted);font-size:.85rem}
+.foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px}
+
+@media (max-width:900px){
+  .hero-grid{grid-template-columns:1fr}
+  .answers,.eco{grid-template-columns:1fr 1fr}
+  .plans{grid-template-columns:1fr 1fr}
+}
+@media (max-width:600px){
+  .compare,.answers,.eco,.plans{grid-template-columns:1fr}
+  .nav-links{display:none}
+  section{padding:64px 0}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap nav-in">
+    <a class="logo" href="#">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <circle cx="11" cy="11" r="3.2" fill="#FF5C38"/>
+        <circle cx="11" cy="11" r="7" stroke="#FF5C38" stroke-opacity=".5" stroke-width="1.4"/>
+        <circle cx="11" cy="11" r="10.3" stroke="#7FB4FF" stroke-opacity=".35" stroke-width="1.2"/>
+      </svg>
+      BlastRadius
+    </a>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#graph-model">The graph</a>
+      <a href="#ecosystem">Platform</a>
+      <a href="#pricing">Pricing</a>
+      <a class="btn btn-blast" href="https://blast-radius-nwtn.onrender.com">Launch app</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="eyebrow">// impact analysis for codebases</div>
+      <h1>Know what <em>breaks</em> before you merge.</h1>
+      <p class="lede">BlastRadius builds a dependency graph of your codebase and tells you the consequences of a change — affected files, API endpoints, tests, and a risk score — before CI fails and before production notices.</p>
+      <div class="hero-cta">
+        <a class="btn btn-blast" href="https://blast-radius-nwtn.onrender.com">Launch app</a>
+        <a class="btn btn-ghost" href="#how">See how it works</a>
+      </div>
+      <p class="hero-note">Open-source engine · runs locally · <span class="mono">pip install blastradius</span></p>
+    </div>
+
+    <div class="graph-card">
+      <div class="graph-head">
+        <span class="mono">repo: payment-service · lang: python</span>
+        <span class="risk-pill mono" id="riskPill">risk: —</span>
+      </div>
+      <svg id="graph" viewBox="0 0 520 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Interactive dependency graph. Click a node to see its blast radius."></svg>
+      <div class="graph-hint" id="hint">click any node to detonate its blast radius</div>
+    </div>
+  </div>
+</header>
+
+<!-- PROBLEM -->
+<section>
+  <div class="wrap">
+    <div class="sec-eyebrow">the problem</div>
+    <h2>Today, you find out after it's already broken.</h2>
+    <p class="sec-lede">Find References, grep, CI failures, and tribal knowledge are all reactive. They tell you what broke, not what will break.</p>
+    <div class="compare">
+      <div class="col">
+        <h3>Current workflow <span class="tag re">reactive</span></h3>
+        <ul>
+          <li>grep for the function name and hope</li>
+          <li>Push, wait 20 minutes, watch CI go red</li>
+          <li>Ask the one person who "knows that code"</li>
+          <li>Discover the breakage in production</li>
+        </ul>
+      </div>
+      <div class="col good">
+        <h3>With BlastRadius <span class="tag pro">proactive</span></h3>
+        <ul>
+          <li>See every caller, direct and transitive</li>
+          <li>Know which API endpoints are exposed to the change</li>
+          <li>Run exactly the tests that matter</li>
+          <li>Get a risk score before you open the PR</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="wrap">
+    <div class="sec-eyebrow">how it works</div>
+    <h2>Your codebase becomes a graph. Changes become queries.</h2>
+    <p class="sec-lede">Parsers emit a language-agnostic intermediate representation. The graph builder turns it into a dependency graph. The engine traverses it to compute impact.</p>
+    <div class="pipeline">
+      <div class="pipe-step">repo</div><div class="pipe-arrow">→</div>
+      <div class="pipe-step">parser</div><div class="pipe-arrow">→</div>
+      <div class="pipe-step hl">IR</div><div class="pipe-arrow">→</div>
+      <div class="pipe-step">graph builder</div><div class="pipe-arrow">→</div>
+      <div class="pipe-step">graph db</div><div class="pipe-arrow">→</div>
+      <div class="pipe-step hl">blast engine</div><div class="pipe-arrow">→</div>
+      <div class="pipe-step">CLI / PR / dashboard</div>
+    </div>
+  </div>
+</section>
+
+<!-- ANSWERS -->
+<section id="graph-model">
+  <div class="wrap">
+    <div class="sec-eyebrow">what you can ask</div>
+    <h2>Six questions, answered before you merge.</h2>
+    <div class="answers">
+      <div class="ans"><div class="q">what breaks if I change this?</div><p>Traverse CALLS and DEPENDS_ON edges to find every affected function — direct callers and everything downstream.</p></div>
+      <div class="ans"><div class="q">which files depend on it?</div><p>Module and package nodes roll transitive dependencies up to the file level, so you see the surface area at a glance.</p></div>
+      <div class="ans"><div class="q">which endpoints are hit?</div><p>EXPOSES edges connect functions to API endpoints, so you know exactly what your users can feel.</p></div>
+      <div class="ans"><div class="q">which tests should run?</div><p>TESTS edges map coverage back to code. Run the affected subset instead of the whole suite.</p></div>
+      <div class="ans"><div class="q">how risky is this change?</div><p>A weighted score over callers, endpoints, tests, and call depth — one number for the whole PR.</p></div>
+      <div class="ans"><div class="q">who should review it?</div><p>The AI layer reads the graph context — diff, dependencies, tests — and suggests reviewers and migration plans.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- RISK -->
+<section>
+  <div class="wrap">
+    <div class="sec-eyebrow">risk score</div>
+    <h2>One number per change.</h2>
+    <p class="sec-lede">Computed from the graph, not from vibes. Future versions add graph centrality, change history, and coverage.</p>
+    <div class="formula">
+<span class="k">risk</span> =
+  <span class="w">0.4</span> × callers          <span class="c">// who calls this, transitively</span>
++ <span class="w">0.3</span> × api_endpoints    <span class="c">// user-facing surface</span>
++ <span class="w">0.2</span> × tests            <span class="c">// coverage touching the change</span>
++ <span class="w">0.1</span> × call_depth       <span class="c">// how deep the ripple goes</span>
+    </div>
+  </div>
+</section>
+
+<!-- ECOSYSTEM -->
+<section id="ecosystem">
+  <div class="wrap">
+    <div class="sec-eyebrow">the platform</div>
+    <h2>One engine. Everywhere you work.</h2>
+    <div class="eco">
+      <div class="eco-card"><span class="badge">open source</span><h3>Engine + CLI</h3><p>Parser SDK, IR, graph builder, and blast-radius algorithm. Runs entirely locally, no cloud required. JSON export built in.</p></div>
+      <div class="eco-card"><span class="badge">saas</span><h3>BlastRadius Cloud</h3><p>Repository management, interactive graph visualization, search, reports, and team collaboration on top of the engine.</p></div>
+      <div class="eco-card"><span class="badge">integration</span><h3>GitHub App</h3><p>Impact analysis posted directly on every pull request: affected code, tests to run, and a risk score, before review starts.</p></div>
+      <div class="eco-card"><span class="badge">integration</span><h3>VS Code Extension</h3><p>See the blast radius of the function under your cursor without leaving the editor.</p></div>
+      <div class="eco-card"><span class="badge">ai</span><h3>AI Assistant</h3><p>Fed structured graph context — not raw code. Explains impact, recommends tests, drafts migration plans.</p></div>
+      <div class="eco-card"><span class="badge">languages</span><h3>Parser Ecosystem</h3><p>Python first. The shared IR means JavaScript, TypeScript, Java, Go, and Rust parsers plug into the same graph.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="wrap">
+    <div class="sec-eyebrow">pricing</div>
+    <h2>Free for the engine. Paid for the platform.</h2>
+    <div class="plans">
+      <div class="plan">
+        <h3>Free</h3><div class="for">Individual developers</div>
+        <ul><li>Open-source engine + CLI</li><li>One cloud repository</li><li>Limited analysis runs</li></ul>
+      </div>
+      <div class="plan pop">
+        <div class="pop-tag">most popular</div>
+        <h3>Pro</h3><div class="for">Serious individuals</div>
+        <ul><li>Unlimited repositories</li><li>GitHub integration</li><li>Reports & exports</li></ul>
+      </div>
+      <div class="plan">
+        <h3>Team</h3><div class="for">Engineering teams</div>
+        <ul><li>Organizations & permissions</li><li>Shared dashboards</li><li>PR risk gates</li></ul>
+      </div>
+      <div class="plan">
+        <h3>Enterprise</h3><div class="for">Large codebases</div>
+        <ul><li>SSO & audit logs</li><li>On-prem deployment</li><li>Compliance & private cloud</li></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta" id="cta">
+  <div class="wrap">
+    <span class="mono-q">$ what happens if I change this code?</span>
+    <h2>Run BlastRadius.</h2>
+    <p>Create a free account, add a repository, and see its blast radius in minutes.</p>
+    <div class="hero-cta" style="justify-content:center">
+      <a class="btn btn-blast" href="https://blast-radius-nwtn.onrender.com">Create free account</a>
+      <a class="btn btn-ghost" href="https://github.com/Mopat1/blast-radius" target="_blank" rel="noopener">Star on GitHub</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <span>© 2026 BlastRadius. Impact analysis for codebases.</span>
+    <span class="mono">parser → IR → graph → blast engine</span>
+  </div>
+</footer>
+
+<script>
+/* ---- interactive blast radius graph ---- */
+const svg = document.getElementById('graph');
+const pill = document.getElementById('riskPill');
+const NS = 'http://www.w3.org/2000/svg';
+
+const nodes = [
+  {id:'auth.verify',      x:95,  y:70},
+  {id:'user.get',         x:250, y:52},
+  {id:'api./checkout',    x:420, y:60,  api:true},
+  {id:'cart.total',       x:150, y:165},
+  {id:'pay.charge',       x:300, y:150},
+  {id:'db.Order',         x:445, y:170},
+  {id:'tax.calc',         x:80,  y:265},
+  {id:'pay.refund',       x:230, y:275},
+  {id:'test_payments',    x:395, y:285, test:true},
+  {id:'notify.email',     x:480, y:300}
+];
+const edges = [
+  [0,1],[1,2],[3,4],[4,2],[4,5],[6,3],[3,7],[7,4],[8,4],[8,7],[5,9],[4,9],[0,4]
+];
+
+// adjacency: edge [a,b] means a -> b (b depends on / is reached from a)
+const adj = {};
+edges.forEach(([a,b])=>{ (adj[a]=adj[a]||[]).push(b); (adj[b]=adj[b]||[]).push(a); });
+
+// draw edges
+const edgeEls = edges.map(([a,b])=>{
+  const l = document.createElementNS(NS,'line');
+  l.setAttribute('x1',nodes[a].x); l.setAttribute('y1',nodes[a].y);
+  l.setAttribute('x2',nodes[b].x); l.setAttribute('y2',nodes[b].y);
+  l.setAttribute('class','edge');
+  svg.appendChild(l);
+  return l;
+});
+
+// draw nodes
+const nodeEls = nodes.map((n,i)=>{
+  const g = document.createElementNS(NS,'g');
+  g.setAttribute('class','node');
+  const c = document.createElementNS(NS,'circle');
+  c.setAttribute('cx',n.x); c.setAttribute('cy',n.y); c.setAttribute('r',10);
+  const t = document.createElementNS(NS,'text');
+  t.setAttribute('x',n.x); t.setAttribute('y',n.y+24);
+  t.setAttribute('text-anchor','middle');
+  t.textContent = n.id;
+  g.appendChild(c); g.appendChild(t);
+  g.addEventListener('click',()=>detonate(i));
+  svg.appendChild(g);
+  return g;
+});
+
+function bfs(start){
+  const dist = {}; dist[start]=0;
+  const q=[start];
+  while(q.length){
+    const cur=q.shift();
+    (adj[cur]||[]).forEach(nb=>{
+      if(dist[nb]===undefined){ dist[nb]=dist[cur]+1; q.push(nb); }
+    });
+  }
+  return dist;
+}
+
+let timers=[];
+function detonate(origin){
+  timers.forEach(clearTimeout); timers=[];
+  // reset
+  nodeEls.forEach(g=>g.classList.remove('hit','origin'));
+  edgeEls.forEach(l=>l.classList.remove('hit'));
+  svg.querySelectorAll('.pulse').forEach(p=>p.remove());
+
+  const dist = bfs(origin);
+  nodeEls[origin].classList.add('origin');
+
+  // pulse ring at origin
+  const p=document.createElementNS(NS,'circle');
+  p.setAttribute('cx',nodes[origin].x); p.setAttribute('cy',nodes[origin].y);
+  p.setAttribute('r',26); p.setAttribute('class','pulse');
+  svg.appendChild(p);
+  timers.push(setTimeout(()=>p.remove(),1300));
+
+  const maxD = Math.max(...Object.values(dist));
+  for(let d=0; d<=maxD; d++){
+    timers.push(setTimeout(()=>{
+      Object.keys(dist).forEach(k=>{
+        if(dist[k]===d) nodeEls[k].classList.add('hit');
+      });
+      edges.forEach(([a,b],ei)=>{
+        const da=dist[a], db=dist[b];
+        if(da!==undefined && db!==undefined && Math.max(da,db)===d && Math.abs(da-db)===1)
+          edgeEls[ei].classList.add('hit');
+      });
+    }, d*260));
+  }
+
+  // risk score: weighted like the real formula
+  const affected = Object.keys(dist).filter(k=>+k!==origin);
+  const apis  = affected.filter(k=>nodes[k].api).length;
+  const tests = affected.filter(k=>nodes[k].test).length;
+  const callers = affected.length;
+  const depth = maxD;
+  const risk = (0.4*callers + 0.3*apis*3 + 0.2*tests*3 + 0.1*depth).toFixed(1);
+
+  timers.push(setTimeout(()=>{
+    pill.textContent = `risk: ${risk} · ${callers} affected · depth ${depth}`;
+    pill.classList.add('hot');
+  }, maxD*260+150));
+}
+
+// auto-demo once on load
+setTimeout(()=>detonate(4), 900);
+</script>
+</body>
+</html>

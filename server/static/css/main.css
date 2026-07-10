@@ -148,3 +148,8 @@ main::before{content:'';position:absolute;inset:0;pointer-events:none;
 .spin{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--blast);
   border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* tooltips inside the details panel: anchor right so the scroll container
+   can't clip them (fix for clipped ✨ explain description) */
+#panel [data-tip]:hover::after{left:auto;right:0;transform:none}
+#panel [data-tip]:hover::before{left:auto;right:16px;transform:rotate(45deg)}
