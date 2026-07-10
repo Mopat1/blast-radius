@@ -120,7 +120,7 @@ def test_layout_roundtrip(token):
 
 
 def test_explain_unconfigured_returns_503(token, monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     for _ in range(20):
         repos = client.get("/repos", headers=auth(token)).json()
         ready = [x for x in repos if x["status"] == "ready"]
@@ -129,4 +129,13 @@ def test_explain_unconfigured_returns_503(token, monkeypatch):
         time.sleep(0.2)
     r = client.post(f"/repos/{ready[0]['id']}/explain", json={"target": "calc_tax"},
                     headers=auth(token))
-    assert r.status_code == 503 and "ANTHROPIC_API_KEY" in r.json()["detail"]
+    assert r.status_code == 503 and "GEMINI_API_KEY" in r.json()["detail"]
+
+
+def test_sample_repo_seeded_on_register(monkeypatch):
+    import server.main as sm
+    monkeypatch.setattr(sm, "SAMPLE_REPO", SHOP)
+    d = client.post("/auth/register",
+                    json={"email": "seed@t.com", "password": "secret123"}).json()
+    repos = client.get("/repos", headers=auth(d["token"])).json()
+    assert any(r["name"] == "blastradius (sample)" for r in repos)

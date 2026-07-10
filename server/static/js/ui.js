@@ -75,3 +75,38 @@ export function restoreOverview(){ paintOverview(); }
 export function overviewLoading(){
   $('report').innerHTML = '<p class="hintp">Loading repository overview…</p>';
 }
+
+/* ---------- modal ---------- */
+let modalEl = null;
+export function showModal({title, badge, badgeClass, html, actions}){
+  closeModal();
+  modalEl = document.createElement('div');
+  modalEl.id = 'modal';
+  modalEl.innerHTML = `
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">${title}</div>
+          ${badge ? `<span class="modal-badge ${badgeClass||''}">${badge}</span>` : ''}
+        </div>
+        <span class="modal-x" title="close (Esc)">✕</span>
+      </div>
+      <div class="modal-body">${html}</div>
+      <div class="modal-actions"></div>
+    </div>`;
+  modalEl.addEventListener('click', e=>{ if(e.target===modalEl) closeModal(); });
+  modalEl.querySelector('.modal-x').addEventListener('click', closeModal);
+  const bar = modalEl.querySelector('.modal-actions');
+  (actions||[]).forEach(a=>{
+    const b = document.createElement('button');
+    b.className = 'b-mini'; b.textContent = a.label;
+    b.addEventListener('click', ()=>a.onClick(modalEl));
+    bar.appendChild(b);
+  });
+  document.body.appendChild(modalEl);
+}
+export function setModalBody(html){
+  if(modalEl) modalEl.querySelector('.modal-body').innerHTML = html;
+}
+export function closeModal(){ if(modalEl){ modalEl.remove(); modalEl=null; } }
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });

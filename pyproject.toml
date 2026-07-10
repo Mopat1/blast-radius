@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "blastradius"
-version = "0.5.0"
+version = "0.6.0"
 description = "Know what breaks before you merge — code-change impact analysis via dependency graphs."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,7 +14,7 @@ dependencies = ["networkx>=3.0", "click>=8.1"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.4", "httpx>=0.27"]
-server = ["httpx>=0.27", "fastapi>=0.110", "uvicorn[standard]>=0.29","google-genai>=1.0.0", "sqlalchemy>=2.0", "pyjwt>=2.8", "email-validator>=2.0", "psycopg2-binary>=2.9"]
+server = ["google-genai>=1.0", "httpx>=0.27", "fastapi>=0.110", "uvicorn[standard]>=0.29", "sqlalchemy>=2.0", "pyjwt>=2.8", "email-validator>=2.0"]
 
 [project.scripts]
 blastradius = "blastradius.cli:main"

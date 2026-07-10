@@ -143,13 +143,22 @@ parameters), which no purely static analyzer resolves. The suite runs in
 CI on every push, and building it immediately caught a real parser bug
 (nested function definitions were not being registered).
 
-## AI review notes (Milestone 6)
+## AI review notes (Milestone 6, powered by Gemini)
 
-With `ANTHROPIC_API_KEY` set on the server, every impact report gets an
+With `GEMINI_API_KEY` set on the server, every impact report gets an
 **✨ explain** button: the impact data (never your raw code) is sent to
-Claude, which writes a reviewer-style note — what realistically breaks,
+Gemini, which writes a reviewer-style note — what realistically breaks,
 why the risk is at this level, which tests and hidden dependencies to
 check. Without the key the feature degrades gracefully (503).
+
+The note opens in a focused modal with structured sections (summary,
+risk, tests first, watch out), a copy button, and Esc to dismiss.
+
+**Shareable deep links:** every detonation updates the URL
+(`#r=<repo>&t=<target>`) — share it and the recipient lands on the same
+blast radius. **📄 report** downloads any impact report as Markdown.
+**Sample repository:** set `BLASTRADIUS_SAMPLE_REPO` (e.g. to this
+repo's git URL) and every new account starts with an analyzed example.
 
 Saved layouts now also sync to your account (server-side), with
 localStorage as offline fallback.

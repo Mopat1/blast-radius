@@ -53,7 +53,7 @@ init_db()
 @app.get("/health", include_in_schema=False)
 def health():
     """Deployment health check (configure this path in Render)."""
-    return {"status": "ok", "version": "0.5.0"}
+    return {"status": "ok", "version": "0.6.0"}
 
 
 DEMO_EMAIL = "demo@blastradius.dev"
@@ -107,13 +107,28 @@ class RepoIn(BaseModel):
 # auth
 # ---------------------------------------------------------------------
 
+SAMPLE_REPO = _os.environ.get("BLASTRADIUS_SAMPLE_REPO", "")
+
+
+def _seed_sample_repo(user: User, db: Session, tasks: BackgroundTasks) -> None:
+    """Give every new account an already-queued sample repository so the
+    first-run experience is one click, not a form."""
+    if not SAMPLE_REPO:
+        return
+    repo = Repo(owner_id=user.id, name="blastradius (sample)", source=SAMPLE_REPO)
+    db.add(repo)
+    db.commit()
+    tasks.add_task(run_analysis, repo.id)
+
+
 @app.post("/auth/register", status_code=201)
-def register(creds: Credentials, db: Session = Depends(get_db)):
+def register(creds: Credentials, tasks: BackgroundTasks, db: Session = Depends(get_db)):
     if db.query(User).filter_by(email=creds.email).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
     user = User(email=creds.email, password_hash=hash_password(creds.password))
     db.add(user)
     db.commit()
+    _seed_sample_repo(user, db, tasks)
     return {"token": create_token(user), "email": user.email}
 
 
@@ -233,7 +248,7 @@ def explain(repo_id: int, body: ExplainIn, user: User = Depends(current_user),
     from blastradius import coupling_map
     if not ai.is_configured():
         raise HTTPException(503, "AI explanations are not configured on this server "
-                                 "(set ANTHROPIC_API_KEY).")
+                                 "(set GEMINI_API_KEY).")
     repo = _owned(repo_id, user, db)
     doc = _doc(repo_id, user, db)
     engine = BlastEngine(build_graph(doc))

@@ -6,8 +6,11 @@ let poll = null, currentRepo = null, onOpen = null;
 
 export function current(){ return currentRepo; }
 
-export function init(openCb){
+let autoOpen = null;
+
+export function init(openCb, autoOpenId){
   onOpen = openCb;
+  autoOpen = autoOpenId || null;
   $('rAdd').onclick = add;
   load();
   if(poll) clearInterval(poll);
@@ -30,6 +33,10 @@ async function load(){
   if(!repos.length){
     box.innerHTML = '<p class="hintp">No repositories yet — add one below.</p>';
     return;
+  }
+  if(autoOpen){
+    const target = repos.find(x => x.id === autoOpen && x.status === 'ready');
+    if(target){ autoOpen = null; currentRepo = target.id; onOpen && onOpen(target.id); }
   }
   repos.forEach(r => {
     const div = document.createElement('div');

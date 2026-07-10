@@ -12,6 +12,13 @@ import * as theme from './theme.js';
 import * as layouts from './layout.js';
 import * as hero from './hero.js';
 
+/* deep links: #r=<repoId>&t=<target> restores a shared blast radius */
+function parseHash(){
+  const m = location.hash.match(/#r=(\d+)(?:&t=([^&]+))?/);
+  return m ? {r: +m[1], t: m[2] ? decodeURIComponent(m[2]) : null} : null;
+}
+const pendingLink = parseHash();
+
 async function openRepo(id){
   let full;
   try{ full = await ReposAPI.graph(id); }catch(e){ return; }
@@ -19,6 +26,10 @@ async function openRepo(id){
   $('empty').style.display='none';
   ui.overviewLoading();
   ui.setClearVisible(false);
+  if(pendingLink && pendingLink.r === id && pendingLink.t){
+    const t = pendingLink.t; pendingLink.t = null;
+    setTimeout(()=>graph.focusSymbol(t), 900);   // after first layout settles
+  }
   ReposAPI.hotspots(id)
     .then(h => ui.showOverview({counts:graph.symbolCounts(), files:graph.fileCount(), hotspots:h.hotspots}))
     .catch(() => ui.showOverview({counts:graph.symbolCounts(), files:graph.fileCount(), hotspots:[]}));
@@ -34,7 +45,7 @@ function safe(name, fn){
 window.addEventListener('DOMContentLoaded', ()=>{
   console.log('BlastRadius frontend v' + APP_VERSION);
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'frontend v' + APP_VERSION);
-  safe('auth',   ()=>auth.init(()=>repos.init(openRepo)));   // login first, always
+  safe('auth',   ()=>auth.init(()=>repos.init(openRepo, pendingLink && pendingLink.r)));   // login first, always
   safe('theme',  ()=>theme.init(()=>graph.restyle()));
   safe('ui',     ()=>ui.init());
   safe('graph',  ()=>graph.init({ onSymbolTap: blast.detonate, onBackgroundTap: blast.clear }));

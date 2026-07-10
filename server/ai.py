@@ -3,19 +3,21 @@
 from __future__ import annotations
 
 import os
+
 from google import genai
 
 MODEL = os.environ.get("BLASTRADIUS_AI_MODEL", "gemini-2.5-flash")
+API_KEY = os.environ.get("GEMINI_API_KEY")
+
+_client = genai.Client(api_key=API_KEY) if API_KEY else None
 
 
 def is_configured() -> bool:
-    return bool(os.environ.get("GEMINI_API_KEY"))
+    return _client is not None
 
 
 def _summarize(report: dict) -> str:
-    def head(xs, n=12):
-        xs = xs or []
-        return ", ".join(xs[:n]) + (" …" if len(xs) > n else "")
+    head = lambda xs, n=12: ", ".join(xs[:n]) + (" …" if len(xs) > n else "")
 
     return (
         f"Target: {report['target']}\n"
@@ -27,37 +29,46 @@ def _summarize(report: dict) -> str:
         f"{head(report['affected_endpoints'])}\n"
         f"Tests covering the change ({len(report['affected_tests'])}): "
         f"{head(report['affected_tests'])}\n"
-        f"Hidden dependencies ({len(report.get('coupled_files', []))}): "
+        f"Hidden dependencies from git co-change history "
+        f"({len(report.get('coupled_files', []))}): "
         f"{head(report.get('coupled_files', []))}"
     )
 
 
 def explain_impact(report: dict) -> str:
-    api_key = os.environ.get("GEMINI_API_KEY")
-
-    if not api_key:
+    if not is_configured():
         raise RuntimeError(
             "AI explanations are not configured (set GEMINI_API_KEY)."
         )
 
-    client = genai.Client(api_key=api_key)
-
     prompt = (
-        "You are a senior software engineer reviewing a pull request.\n\n"
-        "Using the blast radius report below, explain:\n"
-        "1. What is likely to break.\n"
-        "2. Why the risk score is reasonable.\n"
-        "3. Which tests should be executed first.\n"
-        "4. Hidden dependencies to review.\n\n"
+        "You are a senior software engineer reviewing a code change.\n"
+        "Using the blast-radius report below, write a reviewer note of at "
+        "most 170 words.\n\n"
+        "Respond in EXACTLY this plain-text template. Do not use markdown, "
+        "asterisks, hashes, or backticks anywhere:\n\n"
+        "SUMMARY: <2-3 sentences: what this change realistically touches>\n"
+        "RISK: <1-2 sentences: why the score is at this level>\n"
+        "TESTS FIRST:\n"
+        "- <highest-priority test> (up to 5 bullets)\n"
+        "WATCH OUT:\n"
+        "- <hidden dependencies or risky interactions> (up to 4 bullets; "
+        "write '- none' if nothing stands out)\n\n"
         + _summarize(report)
     )
 
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=prompt,
-    )
+    try:
+        response = _client.models.generate_content(
+            model=MODEL,
+            contents=prompt,
+        )
 
-    if not response.text:
-        raise RuntimeError("Gemini returned an empty response.")
+        text = getattr(response, "text", None)
 
-    return response.text.strip()
+        if not text:
+            raise RuntimeError("Gemini returned an empty response.")
+
+        return text.strip()
+
+    except Exception as e:
+        raise RuntimeError(f"Gemini request failed: {e}") from e
