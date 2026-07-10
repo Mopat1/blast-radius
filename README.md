@@ -3,7 +3,7 @@
 > **Know what breaks before you merge.**
 
 [![CI](https://github.com/Mopat1/blast-radius/actions/workflows/ci.yml/badge.svg)](https://github.com/Mopat1/blast-radius/actions)
-**Live app:** https://blast-radius-nwtn.onrender.com · try the demo button, no signup.
+**Live app:** [https://blast-radius-nwtn.onrender.com](https://blastradiuscloud.netlify.app/) · try the demo button, no signup.
 
 BlastRadius parses your codebase into a dependency graph and computes the
 **blast radius** of any change: affected functions, API endpoints, the
