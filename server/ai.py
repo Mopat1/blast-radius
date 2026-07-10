@@ -1,4 +1,73 @@
-"""AI impact explanations.
+"""AI impact explanations using Google Gemini."""
+
+from __future__ import annotations
+
+import os
+
+from google import genai
+
+MODEL = os.environ.get("BLASTRADIUS_AI_MODEL", "gemini-2.5-flash")
+API_KEY = os.environ.get("GEMINI_API_KEY")
+
+_client = genai.Client(api_key=API_KEY) if API_KEY else None
+
+
+def is_configured() -> bool:
+    return _client is not None
+
+
+def _summarize(report: dict) -> str:
+    head = lambda xs, n=12: ", ".join(xs[:n]) + (" …" if len(xs) > n else "")
+
+    return (
+        f"Target: {report['target']}\n"
+        f"Risk score: {report['risk_score']} ({report['risk_level']}), "
+        f"call depth {report['call_depth']}\n"
+        f"Affected functions ({len(report['affected_functions'])}): "
+        f"{head(report['affected_functions'])}\n"
+        f"Affected API endpoints ({len(report['affected_endpoints'])}): "
+        f"{head(report['affected_endpoints'])}\n"
+        f"Tests covering the change ({len(report['affected_tests'])}): "
+        f"{head(report['affected_tests'])}\n"
+        f"Hidden dependencies from git co-change history "
+        f"({len(report.get('coupled_files', []))}): "
+        f"{head(report.get('coupled_files', []))}"
+    )
+
+
+def explain_impact(report: dict) -> str:
+    if not is_configured():
+        raise RuntimeError(
+            "AI explanations are not configured (set GEMINI_API_KEY)."
+        )
+
+    prompt = (
+        "You are a senior software engineer reviewing a pull request.\n\n"
+        "Using the blast-radius report below, write a concise reviewer note "
+        "(150–200 words).\n\n"
+        "Include:\n"
+        "- What components are likely to be affected.\n"
+        "- Why the computed risk score makes sense.\n"
+        "- Which tests should be executed first.\n"
+        "- Any hidden dependencies or risky interactions.\n\n"
+        + _summarize(report)
+    )
+
+    try:
+        response = _client.models.generate_content(
+            model=MODEL,
+            contents=prompt,
+        )
+
+        text = getattr(response, "text", None)
+
+        if not text:
+            raise RuntimeError("Gemini returned an empty response.")
+
+        return text.strip()
+
+    except Exception as e:
+        raise RuntimeError(f"Gemini request failed: {e}") from e"""AI impact explanations.
 
 Follows the BlastRadius AI-layer principle: the model never sees raw
 code — it receives structured context from the engine (impact report,
