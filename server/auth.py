@@ -1,5 +1,4 @@
 """Authentication for BlastRadius Cloud: pbkdf2 password hashing + JWT."""
-
 from __future__ import annotations
 
 import datetime as dt
@@ -7,6 +6,9 @@ import hashlib
 import hmac
 import os
 import secrets
+from dotenv import load_dotenv
+
+load_dotenv()
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -15,11 +17,22 @@ from sqlalchemy.orm import Session
 
 from .db import User, get_db
 
-SECRET = os.environ.get("BLASTRADIUS_SECRET", "dev-secret-change-in-production")
+ENV = os.getenv("ENV", "development")
+
+if SECRET is None:
+    SECRET = secrets.token_hex(64)
+
+if ENV == "production" and not SECRET:
+    raise RuntimeError(
+        "BLASTRADIUS_SECRET environment variable must be set in production."
+    )
+
+if SECRET is None:
+    # Safe only for local development
+    SECRET = "development-only-secret"
+
 ALGO = "HS256"
 TOKEN_TTL_HOURS = 24
-
-_bearer = HTTPBearer(auto_error=False)
 
 
 # ---- passwords -------------------------------------------------------
