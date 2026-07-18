@@ -19,17 +19,18 @@ from .db import User, get_db
 
 ENV = os.getenv("ENV", "development")
 
-if SECRET is None:
-    SECRET = secrets.token_hex(64)
+# Read the JWT signing secret from the environment
+SECRET = os.getenv("BLASTRADIUS_SECRET")
 
+# Production must always provide a secret
 if ENV == "production" and not SECRET:
     raise RuntimeError(
         "BLASTRADIUS_SECRET environment variable must be set in production."
     )
 
+# Local development: generate a temporary secret if none is configured
 if SECRET is None:
-    # Safe only for local development
-    SECRET = "development-only-secret"
+    SECRET = secrets.token_hex(64)
 
 ALGO = "HS256"
 TOKEN_TTL_HOURS = 24
